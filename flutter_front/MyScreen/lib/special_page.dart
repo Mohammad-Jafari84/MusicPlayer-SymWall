@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'userProfile.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 void main() {
   runApp(const MyApp());
@@ -29,7 +30,7 @@ class _SpecialPageState extends State<SpecialPage>
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
 
-  String fullText = 'A wall of Symphony';
+  String fullText = 'a Wall of Symphony';
   String displayedText = '';
   int currentIndex = 0;
 
@@ -92,11 +93,12 @@ class _SpecialPageState extends State<SpecialPage>
           children: [
             FadeTransition(
               opacity: _fadeAnimation,
-              child: const Text(
+              child: Text(
                 'SymWall',
-                style: TextStyle(
+                style: GoogleFonts.playfairDisplay(
                   fontSize: 40,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w700,
+                  fontStyle: FontStyle.italic,
                   color: Color(0xFFFACF5A),
                 ),
               ),
@@ -104,10 +106,11 @@ class _SpecialPageState extends State<SpecialPage>
             const SizedBox(height: 40),
             Text(
               displayedText,
-              style: const TextStyle(
-                fontSize: 20,
+              style: GoogleFonts.dancingScript(
+                fontSize: 27,
                 fontWeight: FontWeight.w300,
-                color: Color(0xFFFACF5A),
+                fontStyle: FontStyle.italic,
+                color: const Color(0xFFFACF5A),
               ),
             ),
           ],
