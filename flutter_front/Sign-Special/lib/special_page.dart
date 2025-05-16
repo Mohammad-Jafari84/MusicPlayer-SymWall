@@ -93,11 +93,12 @@ class _SpecialPageState extends State<SpecialPage>
           children: [
             FadeTransition(
               opacity: _fadeAnimation,
-              child: const Text(
+              child: Text(
                 'SymWall',
-                style: TextStyle(
+                style: GoogleFonts.playfairDisplay(
                   fontSize: 40,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w700,
+                  fontStyle: FontStyle.italic,
                   color: Color(0xFFFACF5A),
                 ),
               ),
@@ -106,7 +107,7 @@ class _SpecialPageState extends State<SpecialPage>
             Text(
               displayedText,
               style: GoogleFonts.dancingScript(
-                fontSize: 25,
+                fontSize: 27,
                 fontWeight: FontWeight.w300,
                 fontStyle: FontStyle.italic,
                 color: const Color(0xFFFACF5A),
