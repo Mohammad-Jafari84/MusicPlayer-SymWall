@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'userProfile.dart';
 
 void main() {
   runApp(const MyApp());
@@ -28,7 +29,7 @@ class _SpecialPageState extends State<SpecialPage>
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
 
-  String fullText = 'A wall of symphony';
+  String fullText = 'A wall of Symphony';
   String displayedText = '';
   int currentIndex = 0;
 
@@ -61,7 +62,15 @@ class _SpecialPageState extends State<SpecialPage>
         return true;
       } else {
         typingDone = true;
-        _fadeController.forward();
+        await _fadeController.forward(); // منتظر تموم شدن انیمیشن باش
+
+        await Future.delayed(const Duration(seconds: 1)); // یک ثانیه صبر کن
+
+        if (mounted) {
+          Navigator.of(
+            context,
+          ).pushReplacement(MaterialPageRoute(builder: (_) => UserProfile()));
+        }
         return false;
       }
     });
