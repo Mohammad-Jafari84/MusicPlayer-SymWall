@@ -4,14 +4,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'paymentPage.dart';
-import 'package:shake/shake.dart';
 import 'package:provider/provider.dart';
 import 'theme_provider.dart';
 import 'theme.dart';
-
-void main() {
-  runApp(UserProfile());
-}
 
 class UserProfile extends StatefulWidget {
   @override
@@ -19,29 +14,17 @@ class UserProfile extends StatefulWidget {
 }
 
 class _UserProfileState extends State<UserProfile> {
-  bool _isDark = true;
-  bool _deletePressed = false;
-
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: _isDark ? ThemeMode.dark : ThemeMode.light,
-      home: ProfilePage(
-        onThemeChange: (val) => setState(() => _isDark = val),
-        isDark: _isDark,
-      ),
-    );
+    return ProfilePage();
   }
 }
 
 class ProfilePage extends StatefulWidget {
-  final ValueChanged<bool> onThemeChange;
+  // final ValueChanged<bool> onThemeChange;
 
-  final bool isDark;
-  ProfilePage({required this.onThemeChange, required this.isDark});
+  // final bool isDark;
+  // ProfilePage({required this.onThemeChange, required this.isDark});
 
   @override
   _ProfilePageState createState() => _ProfilePageState();
@@ -52,6 +35,7 @@ class _ProfilePageState extends State<ProfilePage> {
   String _email = 'user@example.com';
   String _subscription = 'Standard';
   int _credit = 50000;
+  bool _deletePressed = false;
 
   XFile? _imageFile;
   final ImagePicker _picker = ImagePicker();
@@ -122,7 +106,9 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    bool _deletePressed = false;
+    final themeProv = Provider.of<ThemeProvider>(context);
+    final isDark = themeProv.isDarkMode; // ← وضعیت تم
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -139,13 +125,15 @@ class _ProfilePageState extends State<ProfilePage> {
         actions: [
           IconButton(
             icon: Icon(
-              Icons.brightness_6,
+              Provider.of<ThemeProvider>(context).isDarkMode
+                  ? Icons.dark_mode
+                  : Icons.light_mode,
               color: Theme.of(context).colorScheme.primary,
             ),
             onPressed: () {
-              widget.onThemeChange(!widget.isDark);
+              final prov = Provider.of<ThemeProvider>(context, listen: false);
+              prov.toggleTheme(!prov.isDarkMode);
             },
-            tooltip: 'Toggle Theme',
           ),
         ],
       ),
@@ -161,8 +149,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 ).animate().fade(duration: 500.ms).scale()
                 : CircleAvatar(
                   radius: 50,
-                  backgroundColor:
-                      widget.isDark ? Colors.grey[800] : Colors.grey[300],
+                  backgroundColor: isDark ? Colors.grey[800] : Colors.grey[300],
                   child: Icon(
                     Icons.person,
                     size: 50,
@@ -199,7 +186,7 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
             SizedBox(height: 24),
             Card(
-              color: widget.isDark ? Colors.grey[850] : Colors.grey[200],
+              color: isDark ? Colors.grey[850] : Colors.grey[200],
               child: ListTile(
                 leading: Icon(
                   Icons.account_balance_wallet,
@@ -238,9 +225,8 @@ class _ProfilePageState extends State<ProfilePage> {
             SizedBox(height: 24),
             ExpansionTile(
               collapsedBackgroundColor:
-                  widget.isDark ? Colors.grey[850] : Colors.grey[200],
-              backgroundColor:
-                  widget.isDark ? Colors.grey[900] : Colors.grey[100],
+                  isDark ? Colors.grey[850] : Colors.grey[200],
+              backgroundColor: isDark ? Colors.grey[900] : Colors.grey[100],
               title: Text(
                 'Edit Info',
                 style: TextStyle(
@@ -501,8 +487,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     onPressed: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder:
-                              (_) => SupportChatPage(isDark: widget.isDark),
+                          builder: (_) => SupportChatPage(isDark: isDark),
                         ),
                       );
                     },

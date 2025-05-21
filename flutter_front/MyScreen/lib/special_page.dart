@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:musicplayer/main2.dart';
 import 'userProfile.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'main2.dart';
 
 void main() {
   runApp(const MyApp());
@@ -70,7 +72,7 @@ class _SpecialPageState extends State<SpecialPage>
         if (mounted) {
           Navigator.of(
             context,
-          ).pushReplacement(MaterialPageRoute(builder: (_) => UserProfile()));
+          ).pushReplacement(MaterialPageRoute(builder: (_) => HomePage()));
         }
         return false;
       }

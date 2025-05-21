@@ -4,27 +4,31 @@ import 'package:provider/provider.dart';
 import 'theme_provider.dart';
 import 'theme.dart';
 import 'sign_up_screen.dart';
+import 'main2.dart';
+import 'userProfile.dart';
+import 'paymentPage.dart';
 
 void main() {
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => ThemeProvider(),
-      child: const MyApp(),
-    ),
+    ChangeNotifierProvider(create: (_) => ThemeProvider(), child: MyApp()),
   );
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
   @override
   Widget build(BuildContext context) {
-    final themeProv = context.watch<ThemeProvider>();
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: themeProv.mode,
+      themeMode: themeProvider.themeMode,
       home: SignUpScreen(),
+      routes: {
+        '/profile': (_) => ProfilePage(),
+        '/payment': (_) => PaymentPage(),
+      },
     );
   }
 }
