@@ -5,14 +5,13 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'paymentPage.dart';
 import 'package:shake/shake.dart';
+import 'package:provider/provider.dart';
+import 'theme_provider.dart';
+import 'theme.dart';
 
 void main() {
   runApp(UserProfile());
 }
-
-const Color darkColor = Color(0xFF1C1C1C);
-const Color goldColor = Color(0xFFFACF5A);
-const Color lightColor = Colors.white;
 
 class UserProfile extends StatefulWidget {
   @override
@@ -27,14 +26,9 @@ class _UserProfileState extends State<UserProfile> {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Color(0xFFFACF5A),
-          brightness: Brightness.dark,
-        ),
-        scaffoldBackgroundColor: Color(0xFF1C1C1C),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: _isDark ? ThemeMode.dark : ThemeMode.light,
       home: ProfilePage(
         onThemeChange: (val) => setState(() => _isDark = val),
         isDark: _isDark,
@@ -86,19 +80,20 @@ class _ProfilePageState extends State<ProfilePage> {
       context: context,
       builder:
           (_) => Container(
-            color: widget.isDark ? darkColor : lightColor,
+            // 1. پس‌زمینه از تم
+            color: Theme.of(context).scaffoldBackgroundColor,
             child: Wrap(
               children: [
                 ListTile(
                   leading: Icon(
                     Icons.photo_library,
-                    color: widget.isDark ? goldColor : darkColor,
+                    // 2. رنگ آیکون از colorScheme.primary
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                   title: Text(
                     'Gallery',
-                    style: TextStyle(
-                      color: widget.isDark ? Colors.white : Colors.black,
-                    ),
+                    // 3. سبک متن از textTheme
+                    style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   onTap: () {
                     Navigator.of(context).pop();
@@ -108,13 +103,11 @@ class _ProfilePageState extends State<ProfilePage> {
                 ListTile(
                   leading: Icon(
                     Icons.camera_alt,
-                    color: widget.isDark ? goldColor : darkColor,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                   title: Text(
                     'Camera',
-                    style: TextStyle(
-                      color: widget.isDark ? Colors.white : Colors.black,
-                    ),
+                    style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   onTap: () {
                     Navigator.of(context).pop();
@@ -129,22 +122,26 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    final Color bgColor = widget.isDark ? darkColor : lightColor;
-    final Color txtColor = widget.isDark ? Colors.white : Colors.black;
-    final Color iconColor = widget.isDark ? goldColor : darkColor;
-
     bool _deletePressed = false;
 
     return Scaffold(
-      backgroundColor: bgColor,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+
       appBar: AppBar(
-        backgroundColor: bgColor,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+
         elevation: 0,
-        title: Text('User Profile', style: TextStyle(color: txtColor)),
+        title: Text(
+          'User Profile',
+          style: TextStyle(color: Theme.of(context).colorScheme.onBackground),
+        ),
         centerTitle: true,
         actions: [
           IconButton(
-            icon: Icon(Icons.brightness_6, color: iconColor),
+            icon: Icon(
+              Icons.brightness_6,
+              color: Theme.of(context).colorScheme.primary,
+            ),
             onPressed: () {
               widget.onThemeChange(!widget.isDark);
             },
@@ -166,11 +163,18 @@ class _ProfilePageState extends State<ProfilePage> {
                   radius: 50,
                   backgroundColor:
                       widget.isDark ? Colors.grey[800] : Colors.grey[300],
-                  child: Icon(Icons.person, size: 50, color: iconColor),
+                  child: Icon(
+                    Icons.person,
+                    size: 50,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 ).animate().fade(duration: 500.ms).scale(),
             SizedBox(height: 8),
             IconButton(
-              icon: Icon(Icons.camera_alt, color: iconColor),
+              icon: Icon(
+                Icons.camera_alt,
+                color: Theme.of(context).colorScheme.primary,
+              ),
               onPressed: _showImagePickerOptions,
               tooltip: 'Change Profile Picture',
             ),
@@ -179,41 +183,55 @@ class _ProfilePageState extends State<ProfilePage> {
               _username,
               style: TextStyle(
                 fontSize: 20,
-                color: txtColor,
+                color: Theme.of(context).colorScheme.onBackground,
                 fontWeight: FontWeight.bold,
               ),
             ),
             SizedBox(height: 4),
             Text(
               _email,
-              style: TextStyle(fontSize: 16, color: txtColor.withOpacity(0.7)),
+              style: TextStyle(
+                fontSize: 16,
+                color: Theme.of(
+                  context,
+                ).colorScheme.onBackground.withOpacity(0.7),
+              ),
             ),
             SizedBox(height: 24),
             Card(
               color: widget.isDark ? Colors.grey[850] : Colors.grey[200],
               child: ListTile(
-                leading: Icon(Icons.account_balance_wallet, color: iconColor),
+                leading: Icon(
+                  Icons.account_balance_wallet,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
                 title: Text(
                   'Remaining Credit',
-                  style: TextStyle(color: txtColor),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onBackground,
+                  ),
                 ),
                 trailing: Text(
                   '$_credit \$',
-                  style: TextStyle(color: txtColor),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onBackground,
+                  ),
                 ),
               ),
             ),
             SizedBox(height: 16),
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: goldColor,
-                foregroundColor: widget.isDark ? darkColor : lightColor,
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                foregroundColor: Theme.of(context).colorScheme.onPrimary,
                 minimumSize: Size(double.infinity, 48),
               ),
               icon: Icon(Icons.add_shopping_cart),
               label: Text(
                 'Add Credit',
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onPrimary,
+                ),
               ),
               onPressed: payment,
             ),
@@ -223,50 +241,86 @@ class _ProfilePageState extends State<ProfilePage> {
                   widget.isDark ? Colors.grey[850] : Colors.grey[200],
               backgroundColor:
                   widget.isDark ? Colors.grey[900] : Colors.grey[100],
-              title: Text('Edit Info', style: TextStyle(color: txtColor)),
-              leading: Icon(Icons.edit, color: iconColor),
+              title: Text(
+                'Edit Info',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onBackground,
+                ),
+              ),
+              leading: Icon(
+                Icons.edit,
+                color: Theme.of(context).colorScheme.primary,
+              ),
               children: [
                 TextField(
                   controller: _nameController..text = _username,
                   decoration: InputDecoration(
                     labelText: 'Username',
-                    labelStyle: TextStyle(color: txtColor),
+                    labelStyle: TextStyle(
+                      color: Theme.of(context).colorScheme.onBackground,
+                    ),
                     enabledBorder: UnderlineInputBorder(
-                      borderSide: BorderSide(color: txtColor.withOpacity(0.5)),
+                      borderSide: BorderSide(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onBackground.withOpacity(0.5),
+                      ),
                     ),
                   ),
-                  style: TextStyle(color: txtColor),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onBackground,
+                  ),
                 ),
                 TextField(
                   controller: _emailController..text = _email,
                   decoration: InputDecoration(
                     labelText: 'Email',
-                    labelStyle: TextStyle(color: txtColor),
+                    labelStyle: TextStyle(
+                      color: Theme.of(context).colorScheme.onBackground,
+                    ),
                     enabledBorder: UnderlineInputBorder(
-                      borderSide: BorderSide(color: txtColor.withOpacity(0.5)),
+                      borderSide: BorderSide(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onBackground.withOpacity(0.5),
+                      ),
                     ),
                   ),
-                  style: TextStyle(color: txtColor),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onBackground,
+                  ),
                 ),
                 TextField(
                   controller: _passwordController,
                   decoration: InputDecoration(
                     labelText: 'New Password',
-                    labelStyle: TextStyle(color: txtColor),
+                    labelStyle: TextStyle(
+                      color: Theme.of(context).colorScheme.onBackground,
+                    ),
                     enabledBorder: UnderlineInputBorder(
-                      borderSide: BorderSide(color: txtColor.withOpacity(0.5)),
+                      borderSide: BorderSide(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onBackground.withOpacity(0.5),
+                      ),
                     ),
                   ),
-                  style: TextStyle(color: txtColor),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onBackground,
+                  ),
                   obscureText: true,
                 ),
                 SizedBox(height: 8),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: goldColor,
-                    foregroundColor: widget.isDark ? darkColor : lightColor,
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
                   ),
-                  child: Text('Save Changes'),
+                  child: Text(
+                    'Save Changes',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+
                   onPressed: () {
                     ScaffoldMessenger.of(
                       context,
@@ -278,149 +332,172 @@ class _ProfilePageState extends State<ProfilePage> {
             SizedBox(height: 24),
 
             AnimatedContainer(
-              duration: Duration(milliseconds: 300),
+              duration: const Duration(milliseconds: 300),
               curve: Curves.easeInOut,
-              margin: EdgeInsets.symmetric(vertical: 8),
+              margin: const EdgeInsets.symmetric(vertical: 8),
               child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      _deletePressed
-                          ? Colors.redAccent
-                          : Color.fromARGB(255, 162, 161, 161),
-                  foregroundColor: widget.isDark ? darkColor : lightColor,
-                  minimumSize: Size(double.infinity, 48),
-                ),
-                icon: Icon(Icons.delete),
-                label: Text(
-                  'Delete Account',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
                 onPressed: () async {
                   setState(() {
                     _deletePressed = true;
                   });
 
-                  // نمایش هشدار تایید
                   final confirm = await showDialog<bool>(
                     context: context,
                     builder:
                         (context) => AlertDialog(
-                          title: Text('Are you sure?'),
+                          title: Text(
+                            'Are you sure?',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
                           content: Text(
                             'This will permanently delete your account.',
+                            style: Theme.of(context).textTheme.bodyMedium,
                           ),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(context, false),
-                              child: Text('Cancel'),
+                              child: Text(
+                                'Cancel',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
                             ),
                             TextButton(
                               onPressed: () => Navigator.pop(context, true),
-                              child: Text('Delete'),
+                              child: Text(
+                                'Delete',
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.bodyMedium!.copyWith(
+                                  color: Theme.of(context).colorScheme.error,
+                                ),
+                              ),
                             ),
                           ],
                         ),
                   );
 
                   if (confirm == true) {
-                    // TODO: حذف اکانت واقعی اینجا انجام بشه
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(SnackBar(content: Text('Account deleted')));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Account deleted',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        backgroundColor: Theme.of(context).colorScheme.error,
+                      ),
+                    );
                   } else {
                     setState(() {
-                      _deletePressed = false; // برمی‌گرده به رنگ اولیه
+                      _deletePressed = false;
                     });
                   }
                 },
+                icon: Icon(
+                  Icons.delete,
+                  color: Theme.of(context).colorScheme.onPrimary,
+                ),
+                label: Text(
+                  'Delete Account',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.bold),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      _deletePressed
+                          ? Theme.of(context).colorScheme.error
+                          : Theme.of(context).colorScheme.surfaceVariant,
+                  foregroundColor:
+                      Theme.of(context).colorScheme.onSurfaceVariant,
+                  minimumSize: const Size(double.infinity, 48),
+                ),
               ),
             ),
-            SizedBox(height: 24),
+
+            const SizedBox(height: 24),
+
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   'Subscription Type:',
-                  style: TextStyle(fontSize: 16, color: txtColor),
+                  style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 Text(
                   _subscription,
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: txtColor,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.bold),
                 ),
               ],
             ),
-            SizedBox(height: 16),
+
+            const SizedBox(height: 16),
+
             if (_subscription != 'Premium') ...[
               Text(
                 'Buy Premium Subscription',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: txtColor,
+                style: Theme.of(context).textTheme.titleLarge!.copyWith(
+                  color: Theme.of(context).colorScheme.onBackground,
                 ),
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               Wrap(
                 spacing: 12,
                 runSpacing: 8,
                 children: [
                   ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: goldColor,
-                      foregroundColor: widget.isDark ? darkColor : lightColor,
-                    ),
-                    child: Text('1 Month'),
                     onPressed: () {
                       Navigator.of(
                         context,
                       ).push(MaterialPageRoute(builder: (_) => PaymentPage()));
                     },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                    ),
+                    child: Text(
+                      '1 Month',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onPrimary,
+                      ),
+                    ),
                   ),
                   ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: goldColor,
-                      foregroundColor: widget.isDark ? darkColor : lightColor,
-                    ),
-                    child: Text('3 Months'),
                     onPressed: () {
                       Navigator.of(
                         context,
                       ).push(MaterialPageRoute(builder: (_) => PaymentPage()));
                     },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                    ),
+                    child: Text(
+                      '3 Months',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onPrimary,
+                      ),
+                    ),
                   ),
                   ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: goldColor,
-                      foregroundColor: widget.isDark ? darkColor : lightColor,
-                    ),
-                    child: Text('12 Months'),
                     onPressed: () {
                       Navigator.of(
                         context,
                       ).push(MaterialPageRoute(builder: (_) => PaymentPage()));
                     },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                    ),
+                    child: Text(
+                      '12 Months',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onPrimary,
+                      ),
+                    ),
                   ),
                   ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey[700], // رنگ خاکستری دلخواه
-                      foregroundColor: widget.isDark ? darkColor : lightColor,
-                      minimumSize: Size(double.infinity, 48), // تمام‌عرض
-                    ),
-                    icon: Icon(
-                      Icons.support_agent,
-                      color:
-                          widget.isDark
-                              ? darkColor
-                              : lightColor, // رنگ آیکون واضح
-                    ),
-                    label: Text(
-                      'Support',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
                     onPressed: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
@@ -429,6 +506,24 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                       );
                     },
+                    icon: Icon(
+                      Icons.support_agent,
+                      color: Theme.of(context).colorScheme.onPrimary,
+                    ),
+                    label: Text(
+                      'Support',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onPrimary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                          Theme.of(context).colorScheme.secondaryContainer,
+                      foregroundColor:
+                          Theme.of(context).colorScheme.onSecondaryContainer,
+                      minimumSize: const Size(double.infinity, 48),
+                    ),
                   ),
                 ],
               ),
@@ -458,10 +553,16 @@ class SupportChatPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: isDark ? darkColor : lightColor,
-        title: Text('Live Support', style: TextStyle(color: txtColor)),
-        iconTheme: IconThemeData(color: txtColor),
+        backgroundColor: Theme.of(context).colorScheme.background,
+        title: Text(
+          'Live Support',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        iconTheme: IconThemeData(
+          color: Theme.of(context).colorScheme.onBackground,
+        ),
       ),
+
       body: Column(
         children: [
           Expanded(
@@ -483,7 +584,9 @@ class SupportChatPage extends StatelessWidget {
                     ),
                     child: Text(
                       msg['text']!,
-                      style: TextStyle(color: txtColor),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onBackground,
+                      ),
                     ),
                   ),
                 );
@@ -499,14 +602,23 @@ class SupportChatPage extends StatelessWidget {
                   child: TextField(
                     decoration: InputDecoration(
                       hintText: 'Write a message...',
-                      hintStyle: TextStyle(color: txtColor.withOpacity(0.6)),
+                      hintStyle: TextStyle(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onBackground.withOpacity(0.6),
+                      ),
                       border: InputBorder.none,
                     ),
-                    style: TextStyle(color: txtColor),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onBackground,
+                    ),
                   ),
                 ),
                 IconButton(
-                  icon: Icon(Icons.send, color: isDark ? goldColor : darkColor),
+                  icon: Icon(
+                    Icons.send,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                   onPressed: () {},
                 ),
               ],

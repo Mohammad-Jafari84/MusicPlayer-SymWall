@@ -1,14 +1,35 @@
-import 'dart:math';
+// main.dart
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'theme.dart';
+import 'theme_provider.dart';
+import 'dart:math';
 
-void main() => runApp(MyApp());
+void main() {
+  runApp(
+    ChangeNotifierProvider(create: (_) => ThemeProvider(), child: MyApp()),
+  );
+}
 
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(debugShowCheckedModeBanner: false, home: PaymentPage());
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode:
+          Theme.of(context).brightness == Brightness.dark
+              ? ThemeMode.dark
+              : ThemeMode.light,
+      home: PaymentPage(),
+    );
   }
 }
+
+// payment_page.dart
 
 class PaymentPage extends StatefulWidget {
   @override
@@ -44,10 +65,8 @@ class _PaymentPageState extends State<PaymentPage> {
     super.dispose();
   }
 
-  String _generateCode() {
-    final rnd = Random();
-    return List.generate(6, (_) => rnd.nextInt(10).toString()).join();
-  }
+  String _generateCode() =>
+      List.generate(6, (_) => Random().nextInt(10).toString()).join();
 
   void _regenerateCode() {
     setState(() {
@@ -61,41 +80,50 @@ class _PaymentPageState extends State<PaymentPage> {
     setState(() => _loading = true);
     Future.delayed(Duration(seconds: 2), () {
       setState(() => _loading = false);
-      showDialog(
-        context: context,
-        builder:
-            (_) => AlertDialog(
-              backgroundColor: Color(0xFF1C1C1C),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              title: Text(
-                'Payment Successful',
-                style: TextStyle(color: Colors.white),
-              ),
-              content: Icon(
-                Icons.check_circle,
-                color: Color(0xFFFACF5A),
-                size: 60,
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: Text(
-                    'Close',
-                    style: TextStyle(color: Color(0xFFFACF5A)),
-                  ),
-                ),
-              ],
-            ),
-      );
+      _showSuccessDialog();
     });
+  }
+
+  void _showSuccessDialog() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final background = Theme.of(context).scaffoldBackgroundColor;
+    showDialog(
+      context: context,
+      builder:
+          (_) => AlertDialog(
+            backgroundColor: background,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Text(
+              'Payment Successful',
+              style: TextStyle(color: colorScheme.onBackground),
+            ),
+            content: Icon(
+              Icons.check_circle,
+              color: colorScheme.primary,
+              size: 60,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(
+                  'Close',
+                  style: TextStyle(color: colorScheme.primary),
+                ),
+              ),
+            ],
+          ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
-      backgroundColor: Color(0xFF1C1C1C),
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: EdgeInsets.all(16),
@@ -103,13 +131,14 @@ class _PaymentPageState extends State<PaymentPage> {
             key: _formKey,
             child: Column(
               children: [
+                // Card Preview (uses theme colors)
                 Stack(
                   children: [
                     Container(
                       height: 200,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [Color(0xFFFACF5A), Color(0xFFFFE580)],
+                          colors: [colorScheme.primary, colorScheme.secondary],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
@@ -128,20 +157,17 @@ class _PaymentPageState extends State<PaymentPage> {
                         children: [
                           Text(
                             'BANK',
-                            style: TextStyle(
+                            style: theme.textTheme.titleLarge!.copyWith(
                               color: Colors.black,
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
                             ),
                           ),
                           Spacer(),
                           Text(
                             '6037 9981 4878 4555',
-                            style: TextStyle(
-                              color: Colors.black,
+                            style: theme.textTheme.titleLarge!.copyWith(
                               fontSize: 24,
-                              fontWeight: FontWeight.w900,
                               letterSpacing: 3,
+                              color: Colors.black,
                             ),
                           ),
                           SizedBox(height: 12),
@@ -150,14 +176,14 @@ class _PaymentPageState extends State<PaymentPage> {
                             children: [
                               Text(
                                 'CARD HOLDER',
-                                style: TextStyle(
+                                style: theme.textTheme.bodyMedium!.copyWith(
                                   color: Colors.black54,
                                   fontSize: 12,
                                 ),
                               ),
                               Text(
                                 'VALID THRU',
-                                style: TextStyle(
+                                style: theme.textTheme.bodyMedium!.copyWith(
                                   color: Colors.black54,
                                   fontSize: 12,
                                 ),
@@ -169,18 +195,16 @@ class _PaymentPageState extends State<PaymentPage> {
                             children: [
                               Text(
                                 'Mohammad Jafari',
-                                style: TextStyle(
-                                  color: Colors.black,
-                                  fontSize: 16,
+                                style: theme.textTheme.bodyMedium!.copyWith(
                                   fontWeight: FontWeight.w600,
+                                  color: Colors.black,
                                 ),
                               ),
                               Text(
                                 '12 / 25',
-                                style: TextStyle(
-                                  color: Colors.black,
-                                  fontSize: 16,
+                                style: theme.textTheme.bodyMedium!.copyWith(
                                   fontWeight: FontWeight.w600,
+                                  color: Colors.black,
                                 ),
                               ),
                             ],
@@ -210,17 +234,13 @@ class _PaymentPageState extends State<PaymentPage> {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     'Amount: \$100.00',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: theme.textTheme.titleLarge!,
                   ),
                 ),
                 SizedBox(height: 16),
-                TextFormField(
+                CustomTextField(
+                  label: 'Card Number',
                   controller: _cardController,
-                  style: TextStyle(color: Colors.white),
                   keyboardType: TextInputType.number,
                   maxLength: 16,
                   validator:
@@ -228,67 +248,68 @@ class _PaymentPageState extends State<PaymentPage> {
                           v != null && v.length == 16
                               ? null
                               : 'Enter 16-digit card number',
-                  decoration: _inputDecoration('Card Number'),
                 ),
                 SizedBox(height: 16),
                 Row(
                   children: [
                     Expanded(
-                      child: TextFormField(
+                      child: CustomTextField(
+                        label: 'Month',
                         controller: _monthController,
-                        style: TextStyle(color: Colors.white),
                         keyboardType: TextInputType.number,
                         maxLength: 2,
-                        validator:
-                            (v) =>
-                                v != null &&
-                                        int.tryParse(v)! >= 1 &&
-                                        int.tryParse(v)! <= 12
-                                    ? null
-                                    : 'MM',
-                        decoration: _inputDecoration('Month'),
+                        validator: (v) {
+                          final p = int.tryParse(v ?? '');
+                          return p != null && p >= 1 && p <= 12 ? null : 'MM';
+                        },
                       ),
                     ),
                     SizedBox(width: 12),
                     Expanded(
-                      child: TextFormField(
+                      child: CustomTextField(
+                        label: 'Year',
                         controller: _yearController,
-                        style: TextStyle(color: Colors.white),
                         keyboardType: TextInputType.number,
                         maxLength: 2,
                         validator:
                             (v) => v != null && v.length == 2 ? null : 'YY',
-                        decoration: _inputDecoration('Year'),
                       ),
                     ),
                   ],
                 ),
                 SizedBox(height: 16),
-                TextFormField(
+                CustomTextField(
+                  label: 'CVV2',
                   controller: _cvvController,
-                  style: TextStyle(color: Colors.white),
                   keyboardType: TextInputType.number,
                   maxLength: 4,
                   validator:
                       (v) => v != null && v.length == 4 ? null : 'Enter CVV2',
-                  decoration: _inputDecoration('CVV2'),
                 ),
                 SizedBox(height: 16),
                 TextFormField(
                   controller: _passwordController,
-                  style: TextStyle(color: Colors.white),
+                  style: theme.textTheme.bodyMedium,
                   obscureText: _obscurePassword,
                   validator:
                       (v) =>
                           v != null && v.isNotEmpty ? null : 'Enter password',
-                  decoration: _inputDecoration('Password').copyWith(
+                  decoration: InputDecoration(
+                    labelText: 'Password',
+                    filled: true,
+                    fillColor: colorScheme.surface,
+                    labelStyle: TextStyle(color: colorScheme.onSurface),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscurePassword
                             ? Icons.visibility_off
                             : Icons.visibility,
-                        color: Colors.white70,
                       ),
+                      color: colorScheme.onSurface,
                       onPressed:
                           () => setState(
                             () => _obscurePassword = !_obscurePassword,
@@ -302,23 +323,20 @@ class _PaymentPageState extends State<PaymentPage> {
                     Expanded(
                       child: Text(
                         _generatedCode,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
+                        style: theme.textTheme.titleLarge!.copyWith(
                           letterSpacing: 4,
                         ),
-                        textAlign: TextAlign.center,
                       ),
                     ),
                     IconButton(
-                      icon: Icon(Icons.refresh, color: Colors.white70),
+                      icon: Icon(Icons.refresh, color: colorScheme.onSurface),
                       onPressed: _regenerateCode,
                     ),
                     Expanded(
                       flex: 2,
-                      child: TextFormField(
+                      child: CustomTextField(
+                        label: 'Security Code',
                         controller: _inputCodeController,
-                        style: TextStyle(color: Colors.white),
                         keyboardType: TextInputType.number,
                         maxLength: 6,
                         validator:
@@ -326,7 +344,6 @@ class _PaymentPageState extends State<PaymentPage> {
                                 v != null && v == _generatedCode
                                     ? null
                                     : 'Incorrect code',
-                        decoration: _inputDecoration('Security Code'),
                       ),
                     ),
                   ],
@@ -336,26 +353,19 @@ class _PaymentPageState extends State<PaymentPage> {
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFFFACF5A),
-                      foregroundColor: Color(0xFF1C1C1C),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
                     onPressed: _loading ? null : _onPayPressed,
                     child:
                         _loading
                             ? CircularProgressIndicator(
                               valueColor: AlwaysStoppedAnimation(
-                                Color(0xFF1C1C1C),
+                                colorScheme.onPrimary,
                               ),
                             )
                             : Text(
                               'Pay',
                               style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 18,
+                                color: Theme.of(context).colorScheme.onPrimary,
+                                fontSize: 21,
                               ),
                             ),
                   ),
@@ -367,16 +377,41 @@ class _PaymentPageState extends State<PaymentPage> {
       ),
     );
   }
+}
 
-  InputDecoration _inputDecoration(String label) {
-    return InputDecoration(
-      labelText: label,
-      filled: true,
-      fillColor: Color(0xFF333333),
-      labelStyle: TextStyle(color: Colors.white70),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
+class CustomTextField extends StatelessWidget {
+  final String label;
+  final TextEditingController controller;
+  final TextInputType keyboardType;
+  final int maxLength;
+  final String? Function(String?)? validator;
+
+  const CustomTextField({
+    required this.label,
+    required this.controller,
+    required this.keyboardType,
+    required this.maxLength,
+    this.validator,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return TextFormField(
+      controller: controller,
+      style: Theme.of(context).textTheme.bodyMedium,
+      keyboardType: keyboardType,
+      maxLength: maxLength,
+      validator: validator,
+      decoration: InputDecoration(
+        labelText: label,
+        filled: true,
+        fillColor: colorScheme.surface,
+        labelStyle: TextStyle(color: colorScheme.onSurface),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
       ),
     );
   }

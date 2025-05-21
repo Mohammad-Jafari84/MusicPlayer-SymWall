@@ -3,6 +3,8 @@ import 'sign_in_screen.dart';
 import 'package:flutter_animated_button/flutter_animated_button.dart';
 import 'special_page.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'theme_provider.dart';
+import 'theme.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({Key? key}) : super(key: key);
@@ -15,6 +17,7 @@ class _SignUpScreenState extends State<SignUpScreen>
     with SingleTickerProviderStateMixin {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _deletePressed = false; // example if needed
 
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
@@ -33,6 +36,7 @@ class _SignUpScreenState extends State<SignUpScreen>
     bool hasUppercase = password.contains(RegExp(r'[A-Z]'));
     bool hasLowercase = password.contains(RegExp(r'[a-z]'));
     bool hasNumber = password.contains(RegExp(r'[0-9]'));
+
     bool containsUsername = password.toLowerCase().contains(
       username.toLowerCase(),
     );
@@ -51,9 +55,14 @@ class _SignUpScreenState extends State<SignUpScreen>
         );
       }
     } catch (_) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Google Sign-In failed')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Google Sign-In failed',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ),
+      );
     }
   }
 
@@ -83,8 +92,11 @@ class _SignUpScreenState extends State<SignUpScreen>
 
   @override
   Widget build(BuildContext context) {
+    final theme = AppTheme.darkTheme;
+    final colorScheme = AppTheme.darkTheme.colorScheme;
+
     return Scaffold(
-      backgroundColor: Color(0xFF1C1C1C),
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SingleChildScrollView(
         child: FadeTransition(
           opacity: _fadeAnimation,
@@ -103,86 +115,117 @@ class _SignUpScreenState extends State<SignUpScreen>
                     width: 150,
                     height: 150,
                   ),
-                  SizedBox(height: 20),
+                  const SizedBox(height: 20),
                   _buildTextField(
                     controller: _usernameController,
                     hintText: 'Username',
                     obscureText: false,
-                    prefixIcon: Icon(Icons.person, color: Color(0xFFFACF5A)),
+                    prefixIcon: Icon(Icons.person, color: colorScheme.primary),
                   ),
                   _buildTextField(
                     controller: _emailController,
                     hintText: 'Email',
                     obscureText: false,
-                    prefixIcon: Icon(Icons.email, color: Color(0xFFFACF5A)),
+                    prefixIcon: Icon(Icons.email, color: colorScheme.primary),
                   ),
                   _buildTextField(
                     controller: _passwordController,
                     hintText: 'Password',
                     obscureText: _obscurePassword,
-                    prefixIcon: Icon(Icons.lock, color: Color(0xFFFACF5A)),
+                    prefixIcon: Icon(Icons.lock, color: colorScheme.primary),
                     suffixIcon: _buildVisibilityIcon(
                       isObscured: _obscurePassword,
-                      onTap: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
-                      },
+                      onTap:
+                          () => setState(
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
                     ),
                   ),
                   _buildTextField(
                     controller: _confirmPasswordController,
                     hintText: 'Confirm Password',
                     obscureText: _obscureConfirmPassword,
-                    prefixIcon: Icon(Icons.lock, color: Color(0xFFFACF5A)),
+                    prefixIcon: Icon(Icons.lock, color: colorScheme.primary),
                     suffixIcon: _buildVisibilityIcon(
                       isObscured: _obscureConfirmPassword,
-                      onTap: () {
-                        setState(() {
-                          _obscureConfirmPassword = !_obscureConfirmPassword;
-                        });
-                      },
+                      onTap:
+                          () => setState(
+                            () =>
+                                _obscureConfirmPassword =
+                                    !_obscureConfirmPassword,
+                          ),
                     ),
                   ),
-                  SizedBox(height: 20),
+                  const SizedBox(height: 20),
                   Container(
                     width: double.infinity,
                     height: 60,
-                    margin: EdgeInsets.symmetric(vertical: 10),
+                    margin: const EdgeInsets.symmetric(vertical: 10),
                     child: AnimatedButton(
                       height: 60,
                       width: double.infinity,
                       text: 'Sign Up',
                       isReverse: true,
-                      selectedTextColor: Color(0xFFFACF5A),
-                      textStyle: TextStyle(
-                        color: Colors.black,
+                      textStyle: theme.textTheme.bodyMedium!.copyWith(
+                        color: colorScheme.onPrimary,
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
                       transitionType: TransitionType.LEFT_TO_RIGHT,
-                      backgroundColor: Color(0xFFFACF5A),
-                      selectedBackgroundColor: Colors.black,
+                      backgroundColor: colorScheme.primary,
+                      selectedBackgroundColor: colorScheme.onPrimary,
+                      selectedTextColor: colorScheme.primary,
                       borderRadius: 40,
                       borderWidth: 2,
                       onPress: () {
-                        String username = _usernameController.text.trim();
-                        String email = _emailController.text.trim();
-                        String password = _passwordController.text;
-                        String confirmPassword =
-                            _confirmPasswordController.text;
+                        final username = _usernameController.text.trim();
+                        final email = _emailController.text.trim();
+                        final password = _passwordController.text;
+                        final confirmPassword = _confirmPasswordController.text;
                         if (username.isEmpty ||
                             email.isEmpty ||
                             password.isEmpty ||
                             confirmPassword.isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Please fill all fields')),
+                            SnackBar(
+                              content: Text(
+                                'Please fill all fields',
+                                style: theme.textTheme.bodyMedium,
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                        // if (!validateUsername(username)) {
+                        //   ScaffoldMessenger.of(context).showSnackBar(
+                        //     SnackBar(
+                        //       content: Text(
+                        //         'Username must be at least 3 characters and contain only letters and numbers.',
+                        //         style: theme.textTheme.bodyMedium,
+                        //       ),
+                        //     ),
+                        //   );
+                        //   return;
+                        // }
+                        if (!validateEmail(email)) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Please enter a valid email address.',
+                                style: theme.textTheme.bodyMedium,
+                              ),
+                            ),
                           );
                           return;
                         }
                         if (password != confirmPassword) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Passwords do not match')),
+                            SnackBar(
+                              content: Text(
+                                'Passwords do not match',
+                                style: theme.textTheme.bodyMedium,
+                              ),
+                            ),
                           );
                           return;
                         }
@@ -190,7 +233,8 @@ class _SignUpScreenState extends State<SignUpScreen>
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
-                                'Password must be at least 8 characters long, include at least one uppercase letter, one lowercase letter, and one number. It should not contain the username.',
+                                'Password must be at least 8 characters long, include uppercase, lowercase, number, and not contain username.',
+                                style: theme.textTheme.bodyMedium,
                               ),
                             ),
                           );
@@ -203,36 +247,36 @@ class _SignUpScreenState extends State<SignUpScreen>
                       },
                     ),
                   ),
-                  SizedBox(height: 10),
+                  const SizedBox(height: 10),
                   Container(
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton.icon(
-                      icon: Icon(Icons.login, color: Colors.black),
+                      onPressed: _handleGoogleSignIn,
+                      icon: Icon(Icons.login, color: colorScheme.onPrimary),
                       label: Text(
                         'Sign in with Google',
-                        style: TextStyle(
+                        style: theme.textTheme.bodyMedium!.copyWith(
+                          color: colorScheme.onPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: Colors.black,
                         ),
                       ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFFFACF5A),
+                        backgroundColor: colorScheme.primary,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(30),
                         ),
                       ),
-                      onPressed: _handleGoogleSignIn,
                     ),
                   ),
-                  SizedBox(height: 20),
+                  const SizedBox(height: 20),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
                         'Already have an account?',
-                        style: TextStyle(color: Color(0xFFB0AFAF)),
+                        style: theme.textTheme.bodyMedium,
                       ),
                       TextButton(
                         onPressed: () {
@@ -243,7 +287,9 @@ class _SignUpScreenState extends State<SignUpScreen>
                         },
                         child: Text(
                           'Sign In',
-                          style: TextStyle(color: Color(0xFFFACF5A)),
+                          style: theme.textTheme.bodyMedium!.copyWith(
+                            color: colorScheme.primary,
+                          ),
                         ),
                       ),
                     ],
@@ -257,6 +303,14 @@ class _SignUpScreenState extends State<SignUpScreen>
     );
   }
 
+  // Simple email validation using RegExp
+  bool validateEmail(String email) {
+    final emailRegex = RegExp(
+      r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$",
+    );
+    return emailRegex.hasMatch(email);
+  }
+
   Widget _buildTextField({
     required TextEditingController controller,
     required String hintText,
@@ -267,7 +321,7 @@ class _SignUpScreenState extends State<SignUpScreen>
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(30.0),
-        color: Colors.black,
+        color: AppTheme.darkTheme.colorScheme.surface,
       ),
       margin: EdgeInsets.symmetric(vertical: 10),
       child: TextField(
