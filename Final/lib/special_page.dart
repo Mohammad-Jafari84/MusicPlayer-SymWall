@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'main2.dart';
+import 'home.dart';
 import 'userProfile.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'main2.dart';
+
 
 void main() {
   runApp(const MyApp());
