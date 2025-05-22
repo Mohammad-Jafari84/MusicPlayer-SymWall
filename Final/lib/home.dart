@@ -628,6 +628,10 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
+class GlobalAudioPlayer {
+  static final AudioPlayer instance = AudioPlayer();
+}
+
 class PlayerPage extends StatefulWidget {
   final Song song;
   final List<Song> songs;
@@ -637,7 +641,8 @@ class PlayerPage extends StatefulWidget {
 }
 
 class _PlayerPageState extends State<PlayerPage> {
-  final AudioPlayer _player = AudioPlayer();
+  // استفاده از پلیر سراسری
+  final AudioPlayer _player = GlobalAudioPlayer.instance;
   bool isShuffling = false;
   bool isRepeating = false;
   int _currentIndex = 0;
@@ -658,7 +663,7 @@ class _PlayerPageState extends State<PlayerPage> {
 
   void _playSong(Song song) async {
     try {
-      await _player.stop();
+      if (_player.playing) await _player.stop();
       if (song.filePath.startsWith('assets/')) {
         await _player.setAsset(song.filePath);
       } else {
@@ -668,9 +673,11 @@ class _PlayerPageState extends State<PlayerPage> {
       setState(() {});
     } catch (e) {
       print('Error playing song: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to play the song: ${e.toString()}')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to play the song: ${e.toString()}')),
+        );
+      }
     }
   }
 
@@ -726,7 +733,7 @@ class _PlayerPageState extends State<PlayerPage> {
 
   @override
   void dispose() {
-    _player.dispose();
+    // اینجا دیگر _player.dispose() را صدا نزنید تا موزیک قطع نشود
     super.dispose();
   }
 
