@@ -12,6 +12,8 @@ import 'music-shop-page.dart';
 import 'theme.dart';
 import 'userProfile.dart';
 
+enum SongViewType { list, grid }
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
   @override
@@ -54,7 +56,7 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
   List<String> likedSongIds = [];
   late SharedPreferences prefs;
   String searchQuery = "";
@@ -64,6 +66,10 @@ class _HomePageState extends State<HomePage> {
   Future<List<Song>>? _localSongsFuture;
   final OnAudioQuery _audioQuery = OnAudioQuery();
   bool _permissionDenied = false;
+  Song? _currentSong;
+  bool _isPlaying = false;
+  SongViewType _songViewType = SongViewType.list;
+  late AnimationController _cassetteController;
 
   List<Song> customSongs = [
     Song(
@@ -113,6 +119,26 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     initApp();
     _localSongsFuture = _getOrLoadLocalSongs();
+    _cassetteController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat();
+    GlobalAudioPlayer.instance.playerStateStream.listen((state) {
+      setState(() {
+        _isPlaying = state.playing;
+        if (_isPlaying) {
+          _cassetteController.repeat();
+        } else {
+          _cassetteController.stop();
+        }
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _cassetteController.dispose();
+    super.dispose();
   }
 
   Future<void> initApp() async {
@@ -227,6 +253,299 @@ class _HomePageState extends State<HomePage> {
 
   List<Song> get allSongs => [...customSongs, ...localSongs];
 
+  void _onSongPlay(Song song, List<Song> playlist) {
+    setState(() {
+      _currentSong = song;
+      _isPlaying = true;
+    });
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PlayerPage(song: song, songs: playlist),
+      ),
+    );
+  }
+
+  Widget _buildSongTile(Song song, List<Song> playlist) {
+    final cs = Theme.of(context).colorScheme;
+    final isLiked = likedSongIds.contains(song.id);
+    return Card(
+      color: cs.surface,
+      elevation: 2,
+      margin: const EdgeInsets.only(bottom: 16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: cs.onSurface.withOpacity(0.2),
+          width: 1,
+        ),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => _onSongPlay(song, playlist),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: song.image != null
+                    ? Image.asset(
+                  song.image!,
+                  width: 60,
+                  height: 60,
+                  fit: BoxFit.cover,
+                  errorBuilder: (c, e, s) => Icon(Icons.music_note, size: 40, color: cs.primary),
+                )
+                    : QueryArtworkWidget(
+                  id: int.tryParse(song.id) ?? 0,
+                  type: ArtworkType.AUDIO,
+                  nullArtworkWidget: Icon(Icons.music_note, size: 40, color: cs.primary),
+                  artworkBorder: BorderRadius.circular(8),
+                  artworkHeight: 60,
+                  artworkWidth: 60,
+                  artworkFit: BoxFit.cover,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      song.title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      song.artist,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: Icon(
+                  isLiked ? Icons.favorite : Icons.favorite_border,
+                  color: isLiked ? Colors.red : Colors.grey,
+                ),
+                onPressed: () => toggleLike(song.id),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSongGridTile(Song song, List<Song> playlist) {
+    final cs = Theme.of(context).colorScheme;
+    final isLiked = likedSongIds.contains(song.id);
+    return InkWell(
+      onTap: () => _onSongPlay(song, playlist),
+      child: Container(
+        decoration: BoxDecoration(
+          color: cs.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: cs.onSurface.withOpacity(0.15)),
+        ),
+        margin: const EdgeInsets.all(8),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: song.image != null
+                  ? Image.asset(
+                song.image!,
+                width: 90,
+                height: 90,
+                fit: BoxFit.cover,
+                errorBuilder: (c, e, s) => Icon(Icons.music_note, size: 50, color: cs.primary),
+              )
+                  : QueryArtworkWidget(
+                id: int.tryParse(song.id) ?? 0,
+                type: ArtworkType.AUDIO,
+                nullArtworkWidget: Icon(Icons.music_note, size: 50, color: cs.primary),
+                artworkBorder: BorderRadius.circular(12),
+                artworkHeight: 90,
+                artworkWidth: 90,
+                artworkFit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              song.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            Text(
+              song.artist,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.7)),
+            ),
+            IconButton(
+              icon: Icon(
+                isLiked ? Icons.favorite : Icons.favorite_border,
+                color: isLiked ? Colors.red : Colors.grey,
+                size: 20,
+              ),
+              onPressed: () => toggleLike(song.id),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSongList(List<Song> songsToShow) {
+    if (_songViewType == SongViewType.list) {
+      return ListView.builder(
+        physics: const BouncingScrollPhysics(),
+        itemCount: songsToShow.length,
+        padding: const EdgeInsets.all(12),
+        itemBuilder: (context, index) => _buildSongTile(songsToShow[index], songsToShow),
+      );
+    } else {
+      return GridView.builder(
+        physics: const BouncingScrollPhysics(),
+        itemCount: songsToShow.length,
+        padding: const EdgeInsets.all(12),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          childAspectRatio: 0.85,
+        ),
+        itemBuilder: (context, index) => _buildSongGridTile(songsToShow[index], songsToShow),
+      );
+    }
+  }
+
+  Widget _buildMiniPlayer() {
+    if (_currentSong == null || !_isPlaying) return const SizedBox.shrink();
+    final cs = Theme.of(context).colorScheme;
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PlayerPage(song: _currentSong!, songs: allSongs),
+        ),
+      ),
+      child: Container(
+        height: 70,
+        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: cs.surface,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: cs.onSurface.withOpacity(0.08),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Animated cassette icon (rotation)
+            RotationTransition(
+              turns: _cassetteController,
+              child: Icon(
+                Icons.album, // Use Icons.album as a cassette-like icon
+                size: 40,
+                color: cs.primary,
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Artwork
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: _currentSong!.image != null
+                  ? Image.asset(
+                _currentSong!.image!,
+                width: 45,
+                height: 45,
+                fit: BoxFit.cover,
+                errorBuilder: (c, e, s) => Icon(Icons.music_note, size: 32, color: cs.primary),
+              )
+                  : QueryArtworkWidget(
+                id: int.tryParse(_currentSong!.id) ?? 0,
+                type: ArtworkType.AUDIO,
+                nullArtworkWidget: Icon(Icons.music_note, size: 32, color: cs.primary),
+                artworkBorder: BorderRadius.circular(8),
+                artworkHeight: 45,
+                artworkWidth: 45,
+                artworkFit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Song info
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _currentSong!.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    _currentSong!.artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.7)),
+                  ),
+                ],
+              ),
+            ),
+            // Controls
+            IconButton(
+              icon: const Icon(Icons.skip_previous),
+              onPressed: () {
+                // Find index and play previous
+                final idx = allSongs.indexWhere((s) => s.id == _currentSong!.id);
+                if (idx > 0) _onSongPlay(allSongs[idx - 1], allSongs);
+              },
+            ),
+            StreamBuilder<bool>(
+              stream: GlobalAudioPlayer.instance.playingStream,
+              builder: (context, snapshot) {
+                final isPlaying = snapshot.data ?? false;
+                return IconButton(
+                  icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
+                  onPressed: () {
+                    isPlaying
+                        ? GlobalAudioPlayer.instance.pause()
+                        : GlobalAudioPlayer.instance.play();
+                  },
+                );
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.skip_next),
+              onPressed: () {
+                final idx = allSongs.indexWhere((s) => s.id == _currentSong!.id);
+                if (idx < allSongs.length - 1) _onSongPlay(allSongs[idx + 1], allSongs);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -259,6 +578,20 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
         actions: [
+          IconButton(
+            icon: Icon(
+              _songViewType == SongViewType.list ? Icons.grid_view : Icons.list,
+              color: Theme.of(context).colorScheme.onPrimary,
+            ),
+            tooltip: 'Toggle view',
+            onPressed: () {
+              setState(() {
+                _songViewType = _songViewType == SongViewType.list
+                    ? SongViewType.grid
+                    : SongViewType.list;
+              });
+            },
+          ),
           PopupMenuButton<String>(
             icon: Icon(Icons.more_vert, color: cs.onPrimary),
             onSelected: (value) {
@@ -295,197 +628,109 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
       body: SafeArea(
-        child: IndexedStack(
-          index: currentIndex,
+        child: Stack(
           children: [
-            FutureBuilder<List<Song>>(
-              future: _localSongsFuture,
-              builder: (context, snapshot) {
-                if (_permissionDenied) {
-                  return const Padding(
-                    padding: EdgeInsets.all(32),
-                    child: Center(child: Text('Storage permission denied. Please enable it in settings.')),
-                  );
-                }
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Padding(
-                    padding: EdgeInsets.all(32),
-                    child: Center(child: CircularProgressIndicator()),
-                  );
-                }
-                localSongs = snapshot.data ?? [];
-                final songsToShow = filterSongs([...customSongs, ...localSongs]);
-                if (songsToShow.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.all(32),
-                    child: Center(child: Text('No music found.')),
-                  );
-                }
-                return ListView.builder(
-                  physics: const BouncingScrollPhysics(),
-                  itemCount: songsToShow.length,
-                  padding: const EdgeInsets.all(12),
-                  itemBuilder: (context, index) {
-                    final song = songsToShow[index];
-                    final isLiked = likedSongIds.contains(song.id);
-                    return Card(
-                      color: cs.surface,
-                      elevation: 2,
-                      margin: const EdgeInsets.only(bottom: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(
-                          color: cs.onSurface.withOpacity(0.2),
-                          width: 1,
-                        ),
-                      ),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => PlayerPage(song: song, songs: songsToShow),
-                          ),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Row(
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: song.image != null
-                                    ? Image.asset(
-                                  song.image!,
-                                  width: 60,
-                                  height: 60,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (c, e, s) => Icon(Icons.music_note, size: 40, color: cs.primary),
-                                )
-                                    : QueryArtworkWidget(
-                                  id: int.tryParse(song.id) ?? 0,
-                                  type: ArtworkType.AUDIO,
-                                  nullArtworkWidget: Icon(Icons.music_note, size: 40, color: cs.primary),
-                                  artworkBorder: BorderRadius.circular(8),
-                                  artworkHeight: 60,
-                                  artworkWidth: 60,
-                                  artworkFit: BoxFit.cover,
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      song.title,
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      song.artist,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: Colors.grey[600],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              IconButton(
-                                icon: Icon(
-                                  isLiked ? Icons.favorite : Icons.favorite_border,
-                                  color: isLiked ? Colors.red : Colors.grey,
-                                ),
-                                onPressed: () => toggleLike(song.id),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-            likedSongs.isEmpty
-                ? Center(
-              child: Text(
-                'No liked songs yet',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontSize: 18,
-                ),
-              ),
-            )
-                : ListView(
+            IndexedStack(
+              index: currentIndex,
               children: [
-                Padding(
-                  padding: const EdgeInsets.all(12.0),
+                FutureBuilder<List<Song>>(
+                  future: _localSongsFuture,
+                  builder: (context, snapshot) {
+                    if (_permissionDenied) {
+                      return const Padding(
+                        padding: EdgeInsets.all(32),
+                        child: Center(child: Text('Storage permission denied. Please enable it in settings.')),
+                      );
+                    }
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Padding(
+                        padding: EdgeInsets.all(32),
+                        child: Center(child: CircularProgressIndicator()),
+                      );
+                    }
+                    localSongs = snapshot.data ?? [];
+                    final songsToShow = filterSongs([...customSongs, ...localSongs]);
+                    if (songsToShow.isEmpty) {
+                      return const Padding(
+                        padding: EdgeInsets.all(32),
+                        child: Center(child: Text('No music found.')),
+                      );
+                    }
+                    return _buildSongList(songsToShow);
+                  },
+                ),
+                likedSongs.isEmpty
+                    ? Center(
                   child: Text(
-                    'Liked Songs',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    'No liked songs yet',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       fontSize: 18,
-                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                ),
-                ...likedSongs.map(
-                      (song) => ListTile(
-                    leading: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: song.image != null
-                          ? Image.asset(
-                        song.image!,
-                        width: 50,
-                        height: 50,
-                        fit: BoxFit.cover,
-                        errorBuilder: (c, e, s) => Icon(Icons.music_note, size: 40, color: cs.primary),
-                      )
-                          : QueryArtworkWidget(
-                        id: int.tryParse(song.id) ?? 0,
-                        type: ArtworkType.AUDIO,
-                        nullArtworkWidget: Icon(Icons.music_note, size: 40, color: cs.primary),
-                        artworkBorder: BorderRadius.circular(8),
-                        artworkHeight: 50,
-                        artworkWidth: 50,
-                        artworkFit: BoxFit.cover,
-                      ),
-                    ),
-                    title: Text(
-                      song.title,
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
-                    subtitle: Text(
-                      song.artist,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                      ),
-                    ),
-                    trailing: IconButton(
-                      icon: Icon(
-                        Icons.favorite,
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                      onPressed: () => toggleLike(song.id),
-                    ),
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => PlayerPage(
-                          song: song,
-                          songs: likedSongs,
+                )
+                    : ListView(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Text(
+                        'Liked Songs',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
-                  ),
+                    ...likedSongs.map(
+                          (song) => ListTile(
+                        leading: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: song.image != null
+                              ? Image.asset(
+                            song.image!,
+                            width: 50,
+                            height: 50,
+                            fit: BoxFit.cover,
+                            errorBuilder: (c, e, s) => Icon(Icons.music_note, size: 40, color: Theme.of(context).colorScheme.primary),
+                          )
+                              : QueryArtworkWidget(
+                            id: int.tryParse(song.id) ?? 0,
+                            type: ArtworkType.AUDIO,
+                            nullArtworkWidget: Icon(Icons.music_note, size: 40, color: Theme.of(context).colorScheme.primary),
+                            artworkBorder: BorderRadius.circular(8),
+                            artworkHeight: 50,
+                            artworkWidth: 50,
+                            artworkFit: BoxFit.cover,
+                          ),
+                        ),
+                        title: Text(
+                          song.title,
+                          style: Theme.of(context).textTheme.bodyLarge,
+                        ),
+                        subtitle: Text(
+                          song.artist,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                          ),
+                        ),
+                        trailing: IconButton(
+                          icon: Icon(
+                            Icons.favorite,
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                          onPressed: () => toggleLike(song.id),
+                        ),
+                        onTap: () => _onSongPlay(song, likedSongs),
+                      ),
+                    ),
+                  ],
                 ),
+                const MusicShopPage(),
               ],
             ),
-            const MusicShopPage(),
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: _buildMiniPlayer(),
+            ),
           ],
         ),
       ),
