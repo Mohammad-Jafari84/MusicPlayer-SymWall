@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import 'theme_provider.dart';
 import 'theme.dart';
 import 'sign_up_screen.dart';
-import 'home.dart';
+import 'home-page.dart';
 import 'userProfile.dart';
 import 'paymentPage.dart';
 
