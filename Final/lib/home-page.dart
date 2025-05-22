@@ -6,8 +6,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:wave/wave.dart';
 import 'package:wave/config.dart';
-import 'dart:io';
-import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'music-shop-page.dart';
 import 'theme.dart';
@@ -62,7 +60,7 @@ class _HomePageState extends State<HomePage> {
   int currentIndex = 0;
   bool hasSubscription = false;
   List<Song> localSongs = [];
-  List<FileSystemEntity> localImageFiles = [];
+  Future<List<Song>>? _localSongsFuture;
   final OnAudioQuery _audioQuery = OnAudioQuery();
 
   List<Song> customSongs = [
@@ -112,7 +110,7 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     initApp();
-    _loadLocalSongs();
+    _localSongsFuture = _loadLocalSongs();
   }
 
   Future<void> initApp() async {
@@ -155,10 +153,9 @@ class _HomePageState extends State<HomePage> {
     return customSongs.where((song) => likedSongIds.contains(song.id)).toList();
   }
 
-  Future<void> _loadLocalSongs() async {
-    if (!await Permission.storage.request().isGranted) return;
+  Future<List<Song>> _loadLocalSongs() async {
+    if (!await Permission.storage.request().isGranted) return [];
     List<Song> foundSongs = [];
-    List<FileSystemEntity> foundImages = [];
     try {
       List<SongModel> audioFiles = await _audioQuery.querySongs(
         sortType: null,
@@ -176,136 +173,95 @@ class _HomePageState extends State<HomePage> {
           lyrics: '',
         ));
       }
-      final musicDir = Directory('/storage/emulated/0/Music');
-      if (await musicDir.exists()) {
-        await for (var entity in musicDir.list(recursive: true)) {
-          if (entity is File) {
-            String path = entity.path.toLowerCase();
-            if (path.endsWith('.jpg') || path.endsWith('.jpeg') || path.endsWith('.png')) {
-              foundImages.add(entity);
-            }
-          }
-        }
-      }
     } catch (e) {
       print('Error loading local songs: $e');
     }
+    // Only merge if not already present
     setState(() {
       localSongs = foundSongs;
-      localImageFiles = foundImages;
       customSongs = [
         ...foundSongs.where((song) => !customSongs.any((s) => s.id == song.id)),
         ...customSongs,
       ];
     });
+    return foundSongs;
   }
 
   Widget _buildLocalFilesSection() {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (localSongs.isNotEmpty) ...[
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text(
-              'Local Music',
-              style: tt.titleLarge,
+    return FutureBuilder<List<Song>>(
+      future: _localSongsFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.all(32),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+        final localSongs = snapshot.data ?? [];
+        if (localSongs.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Local Music',
+                style: tt.titleLarge,
+              ),
             ),
-          ),
-          SizedBox(
-            height: 140,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: localSongs.length,
-              itemBuilder: (context, index) {
-                final song = localSongs[index];
-                return Card(
-                  margin: const EdgeInsets.all(8),
-                  child: InkWell(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => PlayerPage(song: song, songs: localSongs),
+            SizedBox(
+              height: 140,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: localSongs.length,
+                itemBuilder: (context, index) {
+                  final song = localSongs[index];
+                  return Card(
+                    margin: const EdgeInsets.all(8),
+                    child: InkWell(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => PlayerPage(song: song, songs: localSongs),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        width: 120,
+                        padding: const EdgeInsets.all(8),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            QueryArtworkWidget(
+                              id: int.tryParse(song.id) ?? 0,
+                              type: ArtworkType.AUDIO,
+                              nullArtworkWidget: Icon(Icons.music_note, size: 40, color: cs.primary),
+                              artworkBorder: BorderRadius.circular(8),
+                              artworkHeight: 60,
+                              artworkWidth: 60,
+                              artworkFit: BoxFit.cover,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              song.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
                         ),
-                      );
-                    },
-                    child: Container(
-                      width: 120,
-                      padding: const EdgeInsets.all(8),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          QueryArtworkWidget(
-                            id: int.tryParse(song.id) ?? 0,
-                            type: ArtworkType.AUDIO,
-                            nullArtworkWidget: Icon(Icons.music_note, size: 40, color: cs.primary),
-                            artworkBorder: BorderRadius.circular(8),
-                            artworkHeight: 60,
-                            artworkWidth: 60,
-                            artworkFit: BoxFit.cover,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            song.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
                       ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
-          ),
-        ],
-        if (localImageFiles.isNotEmpty) ...[
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text(
-              'Local Images',
-              style: tt.titleLarge,
-            ),
-          ),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-            ),
-            itemCount: localImageFiles.length,
-            itemBuilder: (context, index) {
-              final file = localImageFiles[index];
-              return Card(
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => Scaffold(
-                          appBar: AppBar(),
-                          body: Center(child: Image.file(File(file.path))),
-                        ),
-                      ),
-                    );
-                  },
-                  child: Image.file(
-                    File(file.path),
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
-      ],
+          ],
+        );
+      },
     );
   }
 

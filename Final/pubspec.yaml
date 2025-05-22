@@ -17,7 +17,6 @@ dependencies:
   provider: ^6.0.5
 
   # پکیج‌های صوتی
-  
   audio_video_progress_bar: ^2.0.3
   audio_service: ^0.18.5
   path_provider: ^2.0.15
@@ -36,13 +35,15 @@ dependencies:
   flutter_animated_button: ^2.0.4
 
   # Add these new packages
-  flutter_media_metadata: ^1.0.0+1
   wave: ^0.2.2
-  audio_waveforms: ^1.0.4
-  flutter_audio_waveforms: ^1.2.1+8
-  id3: ^1.0.2
-  metadata_god: ^0.5.2+1
   on_audio_query: ^2.9.0
+
+  # Remove these (not needed for fast local audio/artwork):
+  # flutter_media_metadata: ^1.0.0+1
+  # audio_waveforms: ^1.0.4
+  # flutter_audio_waveforms: ^1.2.1+8
+  # id3: ^1.0.2
+  # metadata_god: ^0.5.2+1
 
 dev_dependencies:
   flutter_test:
@@ -59,4 +60,3 @@ flutter:
 #    - family: iransans
 #      fonts:
 #        - asset: assets/fonts/IranianSans.ttf
-
