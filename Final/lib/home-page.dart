@@ -143,10 +143,12 @@ class _HomePageState extends State<HomePage> {
   }
 
   List<Song> filterSongs(List<Song> songs) {
+    if (searchQuery.isEmpty) return songs;
     return songs
         .where(
           (song) =>
-          song.title.toLowerCase().contains(searchQuery.toLowerCase()),
+          song.title.toLowerCase().contains(searchQuery.toLowerCase()) ||
+          song.artist.toLowerCase().contains(searchQuery.toLowerCase()),
     )
         .toList();
   }
@@ -223,93 +225,7 @@ class _HomePageState extends State<HomePage> {
     return foundSongs;
   }
 
-  Widget _buildLocalFilesSection() {
-    final cs = Theme.of(context).colorScheme;
-    if (_permissionDenied) {
-      return const Padding(
-        padding: EdgeInsets.all(32),
-        child: Center(child: Text('Storage permission denied. Please enable it in settings.')),
-      );
-    }
-    return FutureBuilder<List<Song>>(
-      future: _localSongsFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Padding(
-            padding: EdgeInsets.all(32),
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
-        final localSongs = snapshot.data ?? [];
-        if (localSongs.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.all(32),
-            child: Center(child: Text('No local music found.')),
-          );
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                'Local Music',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-            ),
-            SizedBox(
-              height: 140,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: localSongs.length,
-                itemBuilder: (context, index) {
-                  final song = localSongs[index];
-                  return Card(
-                    margin: const EdgeInsets.all(8),
-                    child: InkWell(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => PlayerPage(song: song, songs: localSongs),
-                          ),
-                        );
-                      },
-                      child: Container(
-                        width: 120,
-                        padding: const EdgeInsets.all(8),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            QueryArtworkWidget(
-                              id: int.tryParse(song.id) ?? 0,
-                              type: ArtworkType.AUDIO,
-                              nullArtworkWidget: Icon(Icons.music_note, size: 40, color: cs.primary),
-                              artworkBorder: BorderRadius.circular(8),
-                              artworkHeight: 60,
-                              artworkWidth: 60,
-                              artworkFit: BoxFit.cover,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              song.title,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
+  List<Song> get allSongs => [...customSongs, ...localSongs];
 
   @override
   Widget build(BuildContext context) {
@@ -349,6 +265,7 @@ class _HomePageState extends State<HomePage> {
               if (value == 'name') {
                 setState(() {
                   customSongs.sort((a, b) => a.title.compareTo(b.title));
+                  localSongs.sort((a, b) => a.title.compareTo(b.title));
                 });
               }
             },
@@ -381,17 +298,35 @@ class _HomePageState extends State<HomePage> {
         child: IndexedStack(
           index: currentIndex,
           children: [
-            ListView(
-              physics: const BouncingScrollPhysics(),
-              children: [
-                _buildLocalFilesSection(),
-                ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: filterSongs(customSongs).length,
+            FutureBuilder<List<Song>>(
+              future: _localSongsFuture,
+              builder: (context, snapshot) {
+                if (_permissionDenied) {
+                  return const Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(child: Text('Storage permission denied. Please enable it in settings.')),
+                  );
+                }
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                localSongs = snapshot.data ?? [];
+                final songsToShow = filterSongs([...customSongs, ...localSongs]);
+                if (songsToShow.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(child: Text('No music found.')),
+                  );
+                }
+                return ListView.builder(
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: songsToShow.length,
                   padding: const EdgeInsets.all(12),
                   itemBuilder: (context, index) {
-                    final song = filterSongs(customSongs)[index];
+                    final song = songsToShow[index];
                     final isLiked = likedSongIds.contains(song.id);
                     return Card(
                       color: cs.surface,
@@ -409,7 +344,7 @@ class _HomePageState extends State<HomePage> {
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => PlayerPage(song: song, songs: customSongs),
+                            builder: (_) => PlayerPage(song: song, songs: songsToShow),
                           ),
                         ),
                         child: Padding(
@@ -474,8 +409,8 @@ class _HomePageState extends State<HomePage> {
                       ),
                     );
                   },
-                ),
-              ],
+                );
+              },
             ),
             likedSongs.isEmpty
                 ? Center(
