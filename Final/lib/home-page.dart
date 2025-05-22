@@ -8,9 +8,11 @@ import 'package:wave/wave.dart';
 import 'package:wave/config.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'music-shop-page.dart';
 import 'theme.dart';
 import 'userProfile.dart';
+import 'package:audio_service/audio_service.dart';
 
 enum SongViewType { list, grid }
 
@@ -70,6 +72,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   bool _isPlaying = false;
   SongViewType _songViewType = SongViewType.list;
   late AnimationController _cassetteController;
+  late Animation<double> _centerPulseAnimation;
+  bool _isActuallyPlaying = false;
+
+  // AudioService handler for notification and background playback
+  AudioHandler? _audioHandler;
 
   List<Song> customSongs = [
     Song(
@@ -121,18 +128,37 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     _localSongsFuture = _getOrLoadLocalSongs();
     _cassetteController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat();
+      duration: const Duration(milliseconds: 800),
+    );
+    _centerPulseAnimation = Tween<double>(begin: 0.7, end: 1.5).animate(
+      CurvedAnimation(parent: _cassetteController, curve: Curves.easeInOut),
+    );
+    _initAudioService();
     GlobalAudioPlayer.instance.playerStateStream.listen((state) {
-      setState(() {
-        _isPlaying = state.playing;
-        if (_isPlaying) {
-          _cassetteController.repeat();
-        } else {
-          _cassetteController.stop();
-        }
-      });
+      final isPlaying = state.playing;
+      if (mounted) {
+        setState(() {
+          _isPlaying = isPlaying;
+          _isActuallyPlaying = isPlaying;
+        });
+      }
+      if (isPlaying) {
+        _cassetteController.repeat(reverse: true);
+      } else {
+        _cassetteController.stop();
+      }
     });
+  }
+
+  Future<void> _initAudioService() async {
+    _audioHandler = await AudioService.init(
+      builder: () => MyAudioHandler(),
+      config: const AudioServiceConfig(
+        androidNotificationChannelId: 'com.example.musicapp.channel.audio',
+        androidNotificationChannelName: 'Music Playback',
+        androidNotificationOngoing: true,
+      ),
+    );
   }
 
   @override
@@ -179,8 +205,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         .toList();
   }
 
+  // لایک‌ها: هم customSongs و هم localSongs را شامل کن
   List<Song> get likedSongs {
-    return customSongs.where((song) => likedSongIds.contains(song.id)).toList();
+    final all = [...customSongs, ...localSongs];
+    return all.where((song) => likedSongIds.contains(song.id)).toList();
   }
 
   // Try to load from cache, otherwise scan device
@@ -430,67 +458,116 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     }
   }
 
+  // mini player: فقط وقتی روی خود mini player (نه دکمه‌ها) کلیک شد، PlayerPage باز شود
   Widget _buildMiniPlayer() {
-    if (_currentSong == null || !_isPlaying) return const SizedBox.shrink();
+    if (_currentSong == null) return const SizedBox.shrink();
     final cs = Theme.of(context).colorScheme;
-    return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => PlayerPage(song: _currentSong!, songs: allSongs),
+    return Container(
+      height: 80,
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [cs.primary.withOpacity(0.12), cs.surface],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: cs.primary.withOpacity(0.12),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: Container(
-        height: 70,
-        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: cs.surface,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: cs.onSurface.withOpacity(0.08),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            // Animated cassette icon (rotation)
-            RotationTransition(
-              turns: _cassetteController,
-              child: Icon(
-                Icons.album, // Use Icons.album as a cassette-like icon
-                size: 40,
-                color: cs.primary,
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Artwork
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: _currentSong!.image != null
-                  ? Image.asset(
-                _currentSong!.image!,
-                width: 45,
-                height: 45,
-                fit: BoxFit.cover,
-                errorBuilder: (c, e, s) => Icon(Icons.music_note, size: 32, color: cs.primary),
-              )
-                  : QueryArtworkWidget(
-                id: int.tryParse(_currentSong!.id) ?? 0,
-                type: ArtworkType.AUDIO,
-                nullArtworkWidget: Icon(Icons.music_note, size: 32, color: cs.primary),
-                artworkBorder: BorderRadius.circular(8),
-                artworkHeight: 45,
-                artworkWidth: 45,
-                artworkFit: BoxFit.cover,
-              ),
-            ),
-            const SizedBox(width: 12),
-            // Song info
-            Expanded(
+      child: Row(
+        children: [
+          // --- animated icon ---
+          AnimatedBuilder(
+            animation: _cassetteController,
+            builder: (context, child) {
+              return Transform.rotate(
+                angle: _cassetteController.value * 2 * math.pi,
+                child: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        Colors.black,
+                        Colors.grey.shade800,
+                        Colors.grey.shade400,
+                        Colors.white,
+                      ],
+                      stops: const [0.0, 0.7, 0.9, 1.0],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: ScaleTransition(
+                      scale: _centerPulseAnimation,
+                      child: Container(
+                        width: 18,
+                        height: 18,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.black, width: 2),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(width: 10),
+          // ...artwork...
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: _currentSong!.image != null
+                ? Image.asset(
+                    _currentSong!.image!,
+                    width: 48,
+                    height: 48,
+                    fit: BoxFit.cover,
+                    errorBuilder: (c, e, s) => Icon(Icons.music_note, size: 32, color: cs.primary),
+                  )
+                : QueryArtworkWidget(
+                    id: int.tryParse(_currentSong!.id) ?? 0,
+                    type: ArtworkType.AUDIO,
+                    nullArtworkWidget: Icon(Icons.music_note, size: 32, color: cs.primary),
+                    artworkBorder: BorderRadius.circular(10),
+                    artworkHeight: 48,
+                    artworkWidth: 48,
+                    artworkFit: BoxFit.cover,
+                  ),
+          ),
+          const SizedBox(width: 14),
+          // ...song info...
+          Expanded(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => PlayerPage(
+                      song: _currentSong!,
+                      songs: allSongs,
+                      resumeInsteadOfRestart: true,
+                    ),
+                  ),
+                );
+              },
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -499,7 +576,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     _currentSong!.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                   Text(
                     _currentSong!.artist,
@@ -510,38 +587,65 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 ],
               ),
             ),
-            // Controls
-            IconButton(
-              icon: const Icon(Icons.skip_previous),
-              onPressed: () {
-                // Find index and play previous
-                final idx = allSongs.indexWhere((s) => s.id == _currentSong!.id);
-                if (idx > 0) _onSongPlay(allSongs[idx - 1], allSongs);
-              },
-            ),
-            StreamBuilder<bool>(
-              stream: GlobalAudioPlayer.instance.playingStream,
-              builder: (context, snapshot) {
-                final isPlaying = snapshot.data ?? false;
-                return IconButton(
-                  icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
-                  onPressed: () {
-                    isPlaying
-                        ? GlobalAudioPlayer.instance.pause()
-                        : GlobalAudioPlayer.instance.play();
-                  },
-                );
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.skip_next),
-              onPressed: () {
-                final idx = allSongs.indexWhere((s) => s.id == _currentSong!.id);
-                if (idx < allSongs.length - 1) _onSongPlay(allSongs[idx + 1], allSongs);
-              },
-            ),
-          ],
-        ),
+          ),
+          // --- دکمه‌ها: فقط آهنگ را عوض کن، صفحه PlayerPage باز نشود ---
+          IconButton(
+            icon: const Icon(Icons.skip_previous),
+            onPressed: () {
+              final idx = allSongs.indexWhere((s) => s.id == _currentSong!.id);
+              if (idx > 0) {
+                setState(() {
+                  _currentSong = allSongs[idx - 1];
+                });
+                if (_currentSong!.filePath.startsWith('assets/')) {
+                  GlobalAudioPlayer.instance.setAsset(_currentSong!.filePath).then((_) {
+                    GlobalAudioPlayer.instance.play();
+                  });
+                } else {
+                  GlobalAudioPlayer.instance.setFilePath(_currentSong!.filePath).then((_) {
+                    GlobalAudioPlayer.instance.play();
+                  });
+                }
+              }
+            },
+          ),
+          StreamBuilder<bool>(
+            stream: GlobalAudioPlayer.instance.playingStream,
+            builder: (context, snapshot) {
+              final isPlaying = snapshot.data ?? false;
+              return IconButton(
+                icon: Icon(isPlaying ? Icons.pause_circle_filled : Icons.play_circle_fill, size: 32),
+                onPressed: () async {
+                  if (isPlaying) {
+                    await GlobalAudioPlayer.instance.pause();
+                  } else {
+                    await GlobalAudioPlayer.instance.play();
+                  }
+                },
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.skip_next),
+            onPressed: () {
+              final idx = allSongs.indexWhere((s) => s.id == _currentSong!.id);
+              if (idx < allSongs.length - 1) {
+                setState(() {
+                  _currentSong = allSongs[idx + 1];
+                });
+                if (_currentSong!.filePath.startsWith('assets/')) {
+                  GlobalAudioPlayer.instance.setAsset(_currentSong!.filePath).then((_) {
+                    GlobalAudioPlayer.instance.play();
+                  });
+                } else {
+                  GlobalAudioPlayer.instance.setFilePath(_currentSong!.filePath).then((_) {
+                    GlobalAudioPlayer.instance.play();
+                  });
+                }
+              }
+            },
+          ),
+        ],
       ),
     );
   }
@@ -738,10 +842,78 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 }
 
+// AudioService handler for notification and background playback
+class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
+  final _player = GlobalAudioPlayer.instance;
+
+  MyAudioHandler() {
+    _notify();
+    _player.playerStateStream.listen((state) => _notify());
+    _player.currentIndexStream.listen((_) => _notify());
+  }
+
+  void _notify() {
+    final playing = _player.playing;
+    playbackState.add(playbackState.value.copyWith(
+      controls: [
+        MediaControl.skipToPrevious,
+        if (playing) MediaControl.pause else MediaControl.play,
+        MediaControl.skipToNext,
+        MediaControl.stop,
+      ],
+      playing: playing,
+      processingState: AudioProcessingState.ready,
+    ));
+  }
+
+  @override
+  Future<void> play() => _player.play();
+  @override
+  Future<void> pause() => _player.pause();
+  @override
+  Future<void> stop() => _player.stop();
+  @override
+  Future<void> skipToNext() => _player.seekToNext();
+  @override
+  Future<void> skipToPrevious() => _player.seekToPrevious();
+}
+
+// --- Cassette Disc Painter for Mini Player ---
+class _CassetteDiscPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint discPaint = Paint()
+      ..shader = LinearGradient(
+        colors: [Colors.grey.shade800, Colors.grey.shade400],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ).createShader(Rect.fromCircle(center: size.center(Offset.zero), radius: size.width / 2));
+    final Paint centerPaint = Paint()..color = Colors.black;
+    final Paint holePaint = Paint()..color = Colors.white;
+
+    // Draw disc
+    canvas.drawCircle(size.center(Offset.zero), size.width / 2, discPaint);
+    // Draw center
+    canvas.drawCircle(size.center(Offset.zero), size.width / 6, centerPaint);
+    // Draw hole
+    canvas.drawCircle(size.center(Offset.zero), size.width / 16, holePaint);
+
+    // Draw cassette tape holes (left/right)
+    final Paint tapeHolePaint = Paint()..color = Colors.black.withOpacity(0.7);
+    final double tapeHoleRadius = size.width / 10;
+    canvas.drawCircle(Offset(size.width * 0.28, size.height * 0.7), tapeHoleRadius, tapeHolePaint);
+    canvas.drawCircle(Offset(size.width * 0.72, size.height * 0.7), tapeHoleRadius, tapeHolePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
 class PlayerPage extends StatefulWidget {
   final Song song;
   final List<Song> songs;
-  const PlayerPage({super.key, required this.song, required this.songs});
+  final bool resumeInsteadOfRestart;
+  const PlayerPage({super.key, required this.song, required this.songs, this.resumeInsteadOfRestart = false});
   @override
   State<PlayerPage> createState() => _PlayerPageState();
 }
@@ -758,7 +930,10 @@ class _PlayerPageState extends State<PlayerPage> {
     super.initState();
     _playlist = List.from(widget.songs);
     _currentIndex = _playlist.indexWhere((song) => song.id == widget.song.id);
-    _playSong(_playlist[_currentIndex]);
+    // Only play if not resuming
+    if (!(widget.resumeInsteadOfRestart == true && _player.playing)) {
+      _playSong(_playlist[_currentIndex]);
+    }
     _player.playerStateStream.listen((state) {
       if (state.processingState == ProcessingState.completed) {
         _playNextSong();
@@ -777,7 +952,6 @@ class _PlayerPageState extends State<PlayerPage> {
       await _player.play();
       setState(() {});
     } catch (e) {
-      print('Error playing song: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to play the song: ${e.toString()}')),
@@ -838,6 +1012,7 @@ class _PlayerPageState extends State<PlayerPage> {
 
   @override
   void dispose() {
+    // Do not dispose the global player here
     super.dispose();
   }
 
@@ -862,21 +1037,21 @@ class _PlayerPageState extends State<PlayerPage> {
         children: [
           currentSong.image != null
               ? Image.asset(
-            currentSong.image!,
-            width: 250,
-            height: 250,
-            fit: BoxFit.cover,
-            errorBuilder: (c, e, s) => Icon(Icons.music_note, size: 100, color: cs.primary),
-          )
+                  currentSong.image!,
+                  width: 250,
+                  height: 250,
+                  fit: BoxFit.cover,
+                  errorBuilder: (c, e, s) => Icon(Icons.music_note, size: 100, color: cs.primary),
+                )
               : QueryArtworkWidget(
-            id: int.tryParse(currentSong.id) ?? 0,
-            type: ArtworkType.AUDIO,
-            nullArtworkWidget: Icon(Icons.music_note, size: 100, color: cs.primary),
-            artworkBorder: BorderRadius.circular(8),
-            artworkHeight: 250,
-            artworkWidth: 250,
-            artworkFit: BoxFit.cover,
-          ),
+                  id: int.tryParse(currentSong.id) ?? 0,
+                  type: ArtworkType.AUDIO,
+                  nullArtworkWidget: Icon(Icons.music_note, size: 100, color: cs.primary),
+                  artworkBorder: BorderRadius.circular(8),
+                  artworkHeight: 250,
+                  artworkWidth: 250,
+                  artworkFit: BoxFit.cover,
+                ),
           const SizedBox(height: 20),
           Text(currentSong.title, style: tt.titleLarge),
           Text(currentSong.artist, style: tt.titleMedium),
@@ -964,4 +1139,7 @@ class _PlayerPageState extends State<PlayerPage> {
     );
   }
 }
+
+
+
 
