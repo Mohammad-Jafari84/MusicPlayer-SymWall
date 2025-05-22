@@ -134,18 +134,24 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       CurvedAnimation(parent: _cassetteController, curve: Curves.easeInOut),
     );
     _initAudioService();
+
+    // بهینه‌سازی: فقط زمانی setState بزن که وضعیت play/pause تغییر کند
+    bool? lastIsPlaying;
     GlobalAudioPlayer.instance.playerStateStream.listen((state) {
       final isPlaying = state.playing;
-      if (mounted) {
-        setState(() {
-          _isPlaying = isPlaying;
-          _isActuallyPlaying = isPlaying;
-        });
-      }
-      if (isPlaying) {
-        _cassetteController.repeat(reverse: true);
-      } else {
-        _cassetteController.stop();
+      if (lastIsPlaying != isPlaying) {
+        lastIsPlaying = isPlaying;
+        if (mounted) {
+          setState(() {
+            _isPlaying = isPlaying;
+            _isActuallyPlaying = isPlaying;
+          });
+        }
+        if (isPlaying) {
+          _cassetteController.repeat(reverse: true);
+        } else {
+          _cassetteController.stop();
+        }
       }
     });
   }
@@ -918,27 +924,53 @@ class PlayerPage extends StatefulWidget {
   State<PlayerPage> createState() => _PlayerPageState();
 }
 
-class _PlayerPageState extends State<PlayerPage> {
+class _PlayerPageState extends State<PlayerPage> with SingleTickerProviderStateMixin {
   final AudioPlayer _player = GlobalAudioPlayer.instance;
   bool isShuffling = false;
   bool isRepeating = false;
   int _currentIndex = 0;
   List<Song> _playlist = [];
+  late AnimationController _discController;
+  late bool _isPlaying;
 
   @override
   void initState() {
     super.initState();
     _playlist = List.from(widget.songs);
     _currentIndex = _playlist.indexWhere((song) => song.id == widget.song.id);
-    // Only play if not resuming
-    if (!(widget.resumeInsteadOfRestart == true && _player.playing)) {
-      _playSong(_playlist[_currentIndex]);
-    }
+    _discController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 10),
+    );
+    _isPlaying = _player.playing;
+
+    // Only call setState when play/pause state changes, not on every playerStateStream event
+    bool? lastIsPlaying = _isPlaying;
     _player.playerStateStream.listen((state) {
+      final isPlaying = state.playing;
+      if (lastIsPlaying != isPlaying) {
+        lastIsPlaying = isPlaying;
+        if (mounted) {
+          setState(() {
+            _isPlaying = isPlaying;
+          });
+        }
+        if (isPlaying) {
+          _discController.repeat();
+        } else {
+          _discController.stop();
+        }
+      }
       if (state.processingState == ProcessingState.completed) {
         _playNextSong();
       }
     });
+
+    if (!(widget.resumeInsteadOfRestart == true && _player.playing)) {
+      _playSong(_playlist[_currentIndex]);
+    } else if (_player.playing) {
+      _discController.repeat();
+    }
   }
 
   void _playSong(Song song) async {
@@ -990,10 +1022,83 @@ class _PlayerPageState extends State<PlayerPage> {
     });
   }
 
+  Widget _buildSoundClubDisc(Song song) {
+    final cs = Theme.of(context).colorScheme;
+    return Center(
+      child: AnimatedBuilder(
+        animation: _discController,
+        builder: (context, child) {
+          return Transform.rotate(
+            angle: _discController.value * 2 * math.pi,
+            child: Container(
+              width: 260,
+              height: 260,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    cs.primary.withOpacity(0.1),
+                    cs.primary.withOpacity(0.2),
+                    cs.primary.withOpacity(0.4),
+                    cs.primary.withOpacity(0.7),
+                  ],
+                  stops: const [0.5, 0.7, 0.9, 1.0],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: cs.primary.withOpacity(0.2),
+                    blurRadius: 30,
+                    spreadRadius: 10,
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Container(
+                  width: 210,
+                  height: 210,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: cs.surface,
+                    boxShadow: [
+                      BoxShadow(
+                        color: cs.primary.withOpacity(0.15),
+                        blurRadius: 20,
+                        spreadRadius: 5,
+                      ),
+                    ],
+                  ),
+                  child: ClipOval(
+                    child: song.image != null
+                        ? Image.asset(
+                            song.image!,
+                            fit: BoxFit.cover,
+                            width: 210,
+                            height: 210,
+                            errorBuilder: (c, e, s) => Icon(Icons.music_note, size: 100, color: cs.primary),
+                          )
+                        : QueryArtworkWidget(
+                            id: int.tryParse(song.id) ?? 0,
+                            type: ArtworkType.AUDIO,
+                            nullArtworkWidget: Icon(Icons.music_note, size: 100, color: cs.primary),
+                            artworkBorder: BorderRadius.circular(105),
+                            artworkHeight: 210,
+                            artworkWidth: 210,
+                            artworkFit: BoxFit.cover,
+                          ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildWaveform() {
     return Container(
-      height: 50,
-      margin: const EdgeInsets.only(top: 16, bottom: 8),
+      height: 60,
+      margin: const EdgeInsets.only(top: 24, bottom: 12),
       child: WaveWidget(
         config: CustomConfig(
           colors: [
@@ -1004,15 +1109,15 @@ class _PlayerPageState extends State<PlayerPage> {
           heightPercentages: [0.65, 0.66],
         ),
         backgroundColor: Colors.transparent,
-        size: Size(double.infinity, 50),
-        waveAmplitude: 10,
+        size: const Size(double.infinity, 60),
+        waveAmplitude: 12,
       ),
     );
   }
 
   @override
   void dispose() {
-    // Do not dispose the global player here
+    _discController.dispose();
     super.dispose();
   }
 
@@ -1024,39 +1129,50 @@ class _PlayerPageState extends State<PlayerPage> {
     final currentSong = _playlist[_currentIndex];
 
     return Scaffold(
+      backgroundColor: cs.background,
       appBar: AppBar(
         backgroundColor: cs.surface,
+        elevation: 0,
         title: Text(currentSong.title, style: tt.titleLarge),
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: cs.onPrimary),
+          icon: Icon(Icons.keyboard_arrow_down_rounded, color: cs.onPrimary, size: 32),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.more_vert, color: cs.onPrimary),
+            onPressed: () {},
+          ),
+        ],
       ),
       body: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          currentSong.image != null
-              ? Image.asset(
-                  currentSong.image!,
-                  width: 250,
-                  height: 250,
-                  fit: BoxFit.cover,
-                  errorBuilder: (c, e, s) => Icon(Icons.music_note, size: 100, color: cs.primary),
-                )
-              : QueryArtworkWidget(
-                  id: int.tryParse(currentSong.id) ?? 0,
-                  type: ArtworkType.AUDIO,
-                  nullArtworkWidget: Icon(Icons.music_note, size: 100, color: cs.primary),
-                  artworkBorder: BorderRadius.circular(8),
-                  artworkHeight: 250,
-                  artworkWidth: 250,
-                  artworkFit: BoxFit.cover,
+          const SizedBox(height: 16),
+          _buildSoundClubDisc(currentSong),
+          const SizedBox(height: 24),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              children: [
+                Text(
+                  currentSong.title,
+                  style: tt.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
                 ),
-          const SizedBox(height: 20),
-          Text(currentSong.title, style: tt.titleLarge),
-          Text(currentSong.artist, style: tt.titleMedium),
+                const SizedBox(height: 8),
+                Text(
+                  currentSong.artist,
+                  style: tt.titleMedium?.copyWith(color: cs.primary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
           _buildWaveform(),
-          const SizedBox(height: 10),
           StreamBuilder<Duration?>(
             stream: _player.durationStream,
             builder: (context, snapshot) {
@@ -1066,7 +1182,7 @@ class _PlayerPageState extends State<PlayerPage> {
                 builder: (context, snapshot) {
                   final position = snapshot.data ?? Duration.zero;
                   return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: ProgressBar(
                       progress: position,
                       total: duration,
@@ -1081,44 +1197,65 @@ class _PlayerPageState extends State<PlayerPage> {
               );
             },
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               IconButton(
-                icon: Icon(Icons.skip_previous, color: cs.onSurface),
+                icon: Icon(Icons.shuffle, color: isShuffling ? cs.primary : cs.onSurface.withOpacity(0.7)),
+                onPressed: _toggleShuffle,
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: Icon(Icons.skip_previous_rounded, color: cs.primary, size: 36),
                 onPressed: _playPreviousSong,
               ),
+              const SizedBox(width: 8),
               StreamBuilder<bool>(
                 stream: _player.playingStream,
                 builder: (context, snapshot) {
                   final isPlaying = snapshot.data ?? false;
-                  return IconButton(
-                    icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow, color: cs.primary),
-                    iconSize: 48,
-                    onPressed: () {
-                      isPlaying ? _player.pause() : _player.play();
+                  return GestureDetector(
+                    onTap: () {
+                      if (isPlaying) {
+                        _player.pause();
+                        _discController.stop();
+                      } else {
+                        _player.play();
+                        _discController.repeat();
+                      }
                     },
+                    child: Container(
+                      width: 70,
+                      height: 70,
+                      decoration: BoxDecoration(
+                        color: cs.primary,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: cs.primary.withOpacity(0.2),
+                            blurRadius: 16,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                        color: Colors.white,
+                        size: 44,
+                      ),
+                    ),
                   );
                 },
               ),
+              const SizedBox(width: 8),
               IconButton(
-                icon: Icon(Icons.skip_next, color: cs.onSurface),
+                icon: Icon(Icons.skip_next_rounded, color: cs.primary, size: 36),
                 onPressed: _playNextSong,
               ),
-            ],
-          ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
+              const SizedBox(width: 8),
               IconButton(
-                icon: Icon(isShuffling ? Icons.shuffle_on : Icons.shuffle),
-                color: cs.onSurface,
-                onPressed: _toggleShuffle,
-              ),
-              IconButton(
-                icon: Icon(isRepeating ? Icons.repeat_on : Icons.repeat),
-                color: cs.onSurface,
+                icon: Icon(isRepeating ? Icons.repeat_on : Icons.repeat, color: cs.primary),
                 onPressed: () {
                   setState(() {
                     isRepeating = !isRepeating;
@@ -1128,18 +1265,31 @@ class _PlayerPageState extends State<PlayerPage> {
               ),
             ],
           ),
-          const SizedBox(height: 20),
-          Text('Lyrics:', style: tt.titleMedium),
+          const SizedBox(height: 16),
           Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Text(currentSong.lyrics, style: tt.bodyMedium),
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "Lyrics",
+                style: tt.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: cs.primary),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              child: SingleChildScrollView(
+                child: Text(
+                  currentSong.lyrics,
+                  style: tt.bodyMedium?.copyWith(color: cs.onSurface.withOpacity(0.85)),
+                ),
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 }
-
-
-
 
