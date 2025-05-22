@@ -7,6 +7,7 @@ import 'package:on_audio_query/on_audio_query.dart';
 import 'package:wave/wave.dart';
 import 'package:wave/config.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'dart:convert';
 import 'music-shop-page.dart';
 import 'theme.dart';
 import 'userProfile.dart';
@@ -62,6 +63,7 @@ class _HomePageState extends State<HomePage> {
   List<Song> localSongs = [];
   Future<List<Song>>? _localSongsFuture;
   final OnAudioQuery _audioQuery = OnAudioQuery();
+  bool _permissionDenied = false;
 
   List<Song> customSongs = [
     Song(
@@ -110,7 +112,7 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     initApp();
-    _localSongsFuture = _loadLocalSongs();
+    _localSongsFuture = _getOrLoadLocalSongs();
   }
 
   Future<void> initApp() async {
@@ -153,12 +155,41 @@ class _HomePageState extends State<HomePage> {
     return customSongs.where((song) => likedSongIds.contains(song.id)).toList();
   }
 
-  Future<List<Song>> _loadLocalSongs() async {
-    if (!await Permission.storage.request().isGranted) return [];
+  // Try to load from cache, otherwise scan device
+  Future<List<Song>> _getOrLoadLocalSongs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cached = prefs.getString('cached_local_songs');
+    if (cached != null) {
+      final List decoded = jsonDecode(cached);
+      final songs = decoded.map((e) => Song(
+        id: e['id'],
+        title: e['title'],
+        artist: e['artist'],
+        image: null,
+        filePath: e['filePath'],
+        lyrics: '',
+      )).toList().cast<Song>();
+      setState(() {
+        localSongs = songs;
+      });
+      // در پس‌زمینه، لیست را آپدیت کن (در صورت تغییر فایل‌ها)
+      _loadLocalSongsAndUpdateCache();
+      return songs;
+    } else {
+      return await _loadLocalSongsAndUpdateCache();
+    }
+  }
+
+  // Always scan all songs, but cache metadata for next time
+  Future<List<Song>> _loadLocalSongsAndUpdateCache() async {
+    if (!await Permission.storage.request().isGranted) {
+      setState(() => _permissionDenied = true);
+      return [];
+    }
     List<Song> foundSongs = [];
     try {
       List<SongModel> audioFiles = await _audioQuery.querySongs(
-        sortType: null,
+        sortType: SongSortType.TITLE,
         orderType: OrderType.ASC_OR_SMALLER,
         uriType: UriType.EXTERNAL,
         ignoreCase: true,
@@ -173,23 +204,33 @@ class _HomePageState extends State<HomePage> {
           lyrics: '',
         ));
       }
+      // Cache metadata for next time
+      final prefs = await SharedPreferences.getInstance();
+      final toCache = foundSongs.map((s) => {
+        'id': s.id,
+        'title': s.title,
+        'artist': s.artist,
+        'filePath': s.filePath,
+      }).toList();
+      await prefs.setString('cached_local_songs', jsonEncode(toCache));
     } catch (e) {
       print('Error loading local songs: $e');
     }
-    // Only merge if not already present
     setState(() {
       localSongs = foundSongs;
-      customSongs = [
-        ...foundSongs.where((song) => !customSongs.any((s) => s.id == song.id)),
-        ...customSongs,
-      ];
+      _permissionDenied = false;
     });
     return foundSongs;
   }
 
   Widget _buildLocalFilesSection() {
     final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
+    if (_permissionDenied) {
+      return const Padding(
+        padding: EdgeInsets.all(32),
+        child: Center(child: Text('Storage permission denied. Please enable it in settings.')),
+      );
+    }
     return FutureBuilder<List<Song>>(
       future: _localSongsFuture,
       builder: (context, snapshot) {
@@ -200,15 +241,20 @@ class _HomePageState extends State<HomePage> {
           );
         }
         final localSongs = snapshot.data ?? [];
-        if (localSongs.isEmpty) return const SizedBox.shrink();
+        if (localSongs.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.all(32),
+            child: Center(child: Text('No local music found.')),
+          );
+        }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
+            const Padding(
+              padding: EdgeInsets.all(16),
               child: Text(
                 'Local Music',
-                style: tt.titleLarge,
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
             ),
             SizedBox(
@@ -738,3 +784,4 @@ class _PlayerPageState extends State<PlayerPage> {
     );
   }
 }
+
