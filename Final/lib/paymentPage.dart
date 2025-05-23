@@ -51,7 +51,7 @@ class _PaymentPageState extends State<PaymentPage>
     _generatedCode = _generateCode();
     _payAnimController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 3000),
+      duration: const Duration(milliseconds: 2000),
     );
     _payFillAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _payAnimController, curve: Curves.easeInOut),
@@ -60,7 +60,7 @@ class _PaymentPageState extends State<PaymentPage>
 
     // شماره کارت را با فرمت درست نمایش بده
     _cardController.addListener(() {
-      final text = _cardController.text.replaceAll('-', '-');
+      final text = _cardController.text.replaceAll(' ', '');
       final newText = text.replaceAllMapped(RegExp(r".{1,4}"), (match) => "${match.group(0)} ");
       if (_cardController.text != newText.trim()) {
         final pos = _cardController.selection.baseOffset;
@@ -393,6 +393,10 @@ class _PaymentPageState extends State<PaymentPage>
     return AnimatedBuilder(
       animation: _payFillAnimation,
       builder: (context, child) {
+        // تغییر رنگ متن Pay به طلایی هنگام پر شدن آب
+        final textColor = _payFillAnimation.value > 0.35
+            ? Colors.amber.shade400
+            : colorScheme.onPrimary;
         return Stack(
           alignment: Alignment.center,
           children: [
@@ -430,7 +434,7 @@ class _PaymentPageState extends State<PaymentPage>
                       'Pay',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: colorScheme.onPrimary,
+                        color: textColor,
                         fontSize: 21,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 2,
@@ -690,3 +694,5 @@ class _ButtonLiquidFillPainter extends CustomPainter {
   bool shouldRepaint(_ButtonLiquidFillPainter oldDelegate) =>
       oldDelegate.fillPercent != fillPercent;
 }
+
+
