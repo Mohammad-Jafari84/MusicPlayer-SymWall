@@ -1,4 +1,4 @@
-name: musicapp
+name: SymWall
 description: "A new Flutter project."
 publish_to: 'none'
 version: 1.0.0+1
@@ -15,7 +15,7 @@ dependencies:
   shared_preferences: ^2.5.3
   google_fonts: ^6.1.0
   provider: ^6.0.5
-
+  file_picker: ^8.1.2
   # پکیج‌های صوتی
   audio_video_progress_bar: ^2.0.3
   audio_service: ^0.18.5
@@ -32,6 +32,7 @@ dependencies:
   animated_button: ^0.2.0
   google_sign_in: ^6.2.1
   flutter_animated_button: ^2.0.4
+  device_info_plus: ^9.1.2
 
   # Add these new packages
   wave: ^0.2.2
@@ -44,6 +45,20 @@ dependencies:
   # id3: ^1.0.2
   # metadata_god: ^0.5.2+1
 
+  # For Android permissions, add to android/app/src/main/AndroidManifest.xml:
+  # <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+  # <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+  # <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
+  # <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>
+
+  # For iOS permissions, add to ios/Runner/Info.plist:
+  # <key>NSAppleMusicUsageDescription</key>
+  # <string>This app needs access to your music library.</string>
+  # <key>NSMicrophoneUsageDescription</key>
+  # <string>This app needs access to your microphone.</string>
+  # <key>NSPhotoLibraryUsageDescription</key>
+  # <string>This app needs access to your photo library.</string>
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -54,3 +69,4 @@ flutter:
 
   assets:
     - assets/images/
+

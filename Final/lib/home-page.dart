@@ -8,11 +8,14 @@ import 'package:wave/wave.dart';
 import 'package:wave/config.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
+import 'package:audio_service/audio_service.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'music-shop-page.dart';
 import 'theme.dart';
 import 'userProfile.dart';
-import 'package:audio_service/audio_service.dart';
 
 enum SongViewType { list, grid }
 
@@ -34,7 +37,7 @@ class Song {
   final String id;
   final String title;
   final String artist;
-  final String? image; // nullable for local songs
+  final String? image;
   final String filePath;
   final String lyrics;
 
@@ -74,52 +77,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   late AnimationController _cassetteController;
   late Animation<double> _centerPulseAnimation;
   bool _isActuallyPlaying = false;
-
-  // AudioService handler for notification and background playback
   AudioHandler? _audioHandler;
-
-  List<Song> customSongs = [
-    Song(
-      id: '1',
-      title: 'Bi Ehsas ',
-      artist: 'Shadmehr',
-      image: 'assets/images/shadmehr-aghili-bi-ehsas.jpg',
-      filePath: 'assets/audio/Shadmehr Aghili - Bi Ehsas.mp3',
-      lyrics: 'Lyrics of Bi Ehsas ...',
-    ),
-    Song(
-      id: '2',
-      title: 'Divar',
-      artist: 'Mehdi Ahmadvand',
-      image: 'assets/images/Mehdi-Ahmadvand-Divar.jpg',
-      filePath: 'assets/audio/Mehdi Ahmadvand - Divar.mp3',
-      lyrics: 'Lyrics of Divar...',
-    ),
-    Song(
-      id: '3',
-      title: 'Behet Ghol Midam',
-      artist: 'Mohsen Yegane',
-      image: 'assets/images/Mohsen-Yeganeh-Behet Ghol Midam.jpg',
-      filePath: 'assets/audio/Mohsen Yeganeh - Behet Ghol Midam.mp3',
-      lyrics: 'Lyrics of BehetGholMidam...',
-    ),
-    Song(
-      id: '4',
-      title: 'Nf-Clouds',
-      artist: 'Nf',
-      image: 'assets/images/Nf clouds.webp',
-      filePath: 'assets/audio/1. NF - CLOUDS (320).mp3',
-      lyrics: 'Lyrics of Clouds...',
-    ),
-    Song(
-      id: '5',
-      title: 'Plain Jane',
-      artist: 'ASAP Ferg Ft Nicki Minaj',
-      image: 'assets/images/Plain Jane.png',
-      filePath: 'assets/audio/ASAP Ferg Plain Jane Ft Nicki Minaj Remix.mp3',
-      lyrics: 'Lyrics of Plain Jane...',
-    ),
-  ];
 
   @override
   void initState() {
@@ -133,9 +91,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     _centerPulseAnimation = Tween<double>(begin: 0.7, end: 1.5).animate(
       CurvedAnimation(parent: _cassetteController, curve: Curves.easeInOut),
     );
-    _initAudioService();
 
-    // بهینه‌سازی: فقط زمانی setState بزن که وضعیت play/pause تغییر کند
     bool? lastIsPlaying;
     GlobalAudioPlayer.instance.playerStateStream.listen((state) {
       final isPlaying = state.playing;
@@ -154,17 +110,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         }
       }
     });
-  }
-
-  Future<void> _initAudioService() async {
-    _audioHandler = await AudioService.init(
-      builder: () => MyAudioHandler(),
-      config: const AudioServiceConfig(
-        androidNotificationChannelId: 'com.example.musicapp.channel.audio',
-        androidNotificationChannelName: 'Music Playback',
-        androidNotificationOngoing: true,
-      ),
-    );
   }
 
   @override
@@ -203,38 +148,35 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   List<Song> filterSongs(List<Song> songs) {
     if (searchQuery.isEmpty) return songs;
     return songs
-        .where(
-          (song) =>
-          song.title.toLowerCase().contains(searchQuery.toLowerCase()) ||
-          song.artist.toLowerCase().contains(searchQuery.toLowerCase()),
-    )
+        .where((song) =>
+    song.title.toLowerCase().contains(searchQuery.toLowerCase()) ||
+        song.artist.toLowerCase().contains(searchQuery.toLowerCase()))
         .toList();
   }
 
-  // لایک‌ها: هم customSongs و هم localSongs را شامل کن
   List<Song> get likedSongs {
-    final all = [...customSongs, ...localSongs];
-    return all.where((song) => likedSongIds.contains(song.id)).toList();
+    return localSongs.where((song) => likedSongIds.contains(song.id)).toList();
   }
 
-  // Try to load from cache, otherwise scan device
   Future<List<Song>> _getOrLoadLocalSongs() async {
     final prefs = await SharedPreferences.getInstance();
     final cached = prefs.getString('cached_local_songs');
     if (cached != null) {
       final List decoded = jsonDecode(cached);
-      final songs = decoded.map((e) => Song(
+      final songs = decoded
+          .map((e) => Song(
         id: e['id'],
         title: e['title'],
         artist: e['artist'],
         image: null,
         filePath: e['filePath'],
         lyrics: '',
-      )).toList().cast<Song>();
+      ))
+          .toList()
+          .cast<Song>();
       setState(() {
         localSongs = songs;
       });
-      // در پس‌زمینه، لیست را آپدیت کن (در صورت تغییر فایل‌ها)
       _loadLocalSongsAndUpdateCache();
       return songs;
     } else {
@@ -242,12 +184,64 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     }
   }
 
-  // Always scan all songs, but cache metadata for next time
   Future<List<Song>> _loadLocalSongsAndUpdateCache() async {
-    if (!await Permission.storage.request().isGranted) {
+    bool permissionGranted = false;
+    if (Platform.isAndroid) {
+      int sdkInt = 0;
+      try {
+        final deviceInfo = await DeviceInfoPlugin().androidInfo;
+        sdkInt = deviceInfo.version.sdkInt;
+      } catch (_) {
+        sdkInt = 33; // fallback
+      }
+      if (sdkInt >= 33) {
+        // Android 13+
+        var audioStatus = await Permission.audio.request();
+        if (audioStatus.isGranted) {
+          permissionGranted = true;
+        } else if (audioStatus.isPermanentlyDenied) {
+          await openAppSettings();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Please enable audio permission in settings')),
+            );
+          }
+        }
+      } else {
+        // Android 12 and below
+        var storageStatus = await Permission.storage.request();
+        if (storageStatus.isGranted) {
+          permissionGranted = true;
+        } else if (storageStatus.isPermanentlyDenied) {
+          await openAppSettings();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Please enable storage permission in settings')),
+            );
+          }
+        }
+      }
+    } else if (Platform.isIOS) {
+      var permissionStatus = await Permission.mediaLibrary.request();
+      if (permissionStatus.isGranted) {
+        permissionGranted = true;
+      } else if (permissionStatus.isPermanentlyDenied) {
+        await openAppSettings();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please enable media library permission in settings')),
+          );
+        }
+      }
+    } else {
+      permissionGranted = true; // For other platforms, allow by default
+    }
+
+    if (!permissionGranted) {
       setState(() => _permissionDenied = true);
       return [];
     }
+
     List<Song> foundSongs = [];
     try {
       List<SongModel> audioFiles = await _audioQuery.querySongs(
@@ -257,26 +251,34 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         ignoreCase: true,
       );
       for (var song in audioFiles) {
-        foundSongs.add(Song(
-          id: song.id.toString(),
-          title: song.title,
-          artist: song.artist ?? 'Unknown Artist',
-          image: null,
-          filePath: song.data,
-          lyrics: '',
-        ));
+        if (await File(song.data).exists()) {
+          foundSongs.add(Song(
+            id: song.id.toString(),
+            title: song.title,
+            artist: song.artist ?? 'Unknown Artist',
+            image: null,
+            filePath: song.data,
+            lyrics: '',
+          ));
+        }
       }
-      // Cache metadata for next time
       final prefs = await SharedPreferences.getInstance();
-      final toCache = foundSongs.map((s) => {
+      final toCache = foundSongs
+          .map((s) => {
         'id': s.id,
         'title': s.title,
         'artist': s.artist,
         'filePath': s.filePath,
-      }).toList();
+      })
+          .toList();
       await prefs.setString('cached_local_songs', jsonEncode(toCache));
     } catch (e) {
       print('Error loading local songs: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load local songs: $e')),
+        );
+      }
     }
     setState(() {
       localSongs = foundSongs;
@@ -285,7 +287,51 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     return foundSongs;
   }
 
-  List<Song> get allSongs => [...customSongs, ...localSongs];
+  Future<void> pickMusicFile() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.audio,
+        allowMultiple: true,
+      );
+      if (result != null && result.files.isNotEmpty) {
+        List<Song> pickedSongs = [];
+        for (var file in result.files) {
+          if (file.path != null && await File(file.path!).exists()) {
+            pickedSongs.add(Song(
+              id: DateTime.now().millisecondsSinceEpoch.toString(),
+              title: file.name,
+              artist: 'Unknown Artist',
+              image: null,
+              filePath: file.path!,
+              lyrics: '',
+            ));
+          }
+        }
+        setState(() {
+          localSongs.addAll(pickedSongs);
+        });
+        final prefs = await SharedPreferences.getInstance();
+        final toCache = localSongs
+            .map((s) => {
+          'id': s.id,
+          'title': s.title,
+          'artist': s.artist,
+          'filePath': s.filePath,
+        })
+            .toList();
+        await prefs.setString('cached_local_songs', jsonEncode(toCache));
+      }
+    } catch (e) {
+      print('Error picking music files: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to pick music files: $e')),
+        );
+      }
+    }
+  }
+
+  List<Song> get allSongs => localSongs;
 
   void _onSongPlay(Song song, List<Song> playlist) {
     setState(() {
@@ -323,18 +369,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: song.image != null
-                    ? Image.asset(
-                  song.image!,
-                  width: 60,
-                  height: 60,
-                  fit: BoxFit.cover,
-                  errorBuilder: (c, e, s) => Icon(Icons.music_note, size: 40, color: cs.primary),
-                )
-                    : QueryArtworkWidget(
+                child: QueryArtworkWidget(
                   id: int.tryParse(song.id) ?? 0,
                   type: ArtworkType.AUDIO,
-                  nullArtworkWidget: Icon(Icons.music_note, size: 40, color: cs.primary),
+                  nullArtworkWidget:
+                  Icon(Icons.music_note, size: 40, color: cs.primary),
                   artworkBorder: BorderRadius.circular(8),
                   artworkHeight: 60,
                   artworkWidth: 60,
@@ -397,18 +436,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: song.image != null
-                  ? Image.asset(
-                song.image!,
-                width: 90,
-                height: 90,
-                fit: BoxFit.cover,
-                errorBuilder: (c, e, s) => Icon(Icons.music_note, size: 50, color: cs.primary),
-              )
-                  : QueryArtworkWidget(
+              child: QueryArtworkWidget(
                 id: int.tryParse(song.id) ?? 0,
                 type: ArtworkType.AUDIO,
-                nullArtworkWidget: Icon(Icons.music_note, size: 50, color: cs.primary),
+                nullArtworkWidget:
+                Icon(Icons.music_note, size: 50, color: cs.primary),
                 artworkBorder: BorderRadius.circular(12),
                 artworkHeight: 90,
                 artworkWidth: 90,
@@ -448,7 +480,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         physics: const BouncingScrollPhysics(),
         itemCount: songsToShow.length,
         padding: const EdgeInsets.all(12),
-        itemBuilder: (context, index) => _buildSongTile(songsToShow[index], songsToShow),
+        itemBuilder: (context, index) =>
+            _buildSongTile(songsToShow[index], songsToShow),
       );
     } else {
       return GridView.builder(
@@ -459,12 +492,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           crossAxisCount: 2,
           childAspectRatio: 0.85,
         ),
-        itemBuilder: (context, index) => _buildSongGridTile(songsToShow[index], songsToShow),
+        itemBuilder: (context, index) =>
+            _buildSongGridTile(songsToShow[index], songsToShow),
       );
     }
   }
 
-  // mini player: فقط وقتی روی خود mini player (نه دکمه‌ها) کلیک شد، PlayerPage باز شود
   Widget _buildMiniPlayer() {
     if (_currentSong == null) return const SizedBox.shrink();
     final cs = Theme.of(context).colorScheme;
@@ -489,7 +522,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       ),
       child: Row(
         children: [
-          // --- animated icon ---
           AnimatedBuilder(
             animation: _cassetteController,
             builder: (context, child) {
@@ -536,29 +568,20 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             },
           ),
           const SizedBox(width: 10),
-          // ...artwork...
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
-            child: _currentSong!.image != null
-                ? Image.asset(
-                    _currentSong!.image!,
-                    width: 48,
-                    height: 48,
-                    fit: BoxFit.cover,
-                    errorBuilder: (c, e, s) => Icon(Icons.music_note, size: 32, color: cs.primary),
-                  )
-                : QueryArtworkWidget(
-                    id: int.tryParse(_currentSong!.id) ?? 0,
-                    type: ArtworkType.AUDIO,
-                    nullArtworkWidget: Icon(Icons.music_note, size: 32, color: cs.primary),
-                    artworkBorder: BorderRadius.circular(10),
-                    artworkHeight: 48,
-                    artworkWidth: 48,
-                    artworkFit: BoxFit.cover,
-                  ),
+            child: QueryArtworkWidget(
+              id: int.tryParse(_currentSong!.id) ?? 0,
+              type: ArtworkType.AUDIO,
+              nullArtworkWidget:
+              Icon(Icons.music_note, size: 32, color: cs.primary),
+              artworkBorder: BorderRadius.circular(10),
+              artworkHeight: 48,
+              artworkWidth: 48,
+              artworkFit: BoxFit.cover,
+            ),
           ),
           const SizedBox(width: 14),
-          // ...song info...
           Expanded(
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
@@ -582,35 +605,42 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     _currentSong!.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                   Text(
                     _currentSong!.artist,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.7)),
+                    style:
+                    TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.7)),
                   ),
                 ],
               ),
             ),
           ),
-          // --- دکمه‌ها: فقط آهنگ را عوض کن، صفحه PlayerPage باز نشود ---
           IconButton(
             icon: const Icon(Icons.skip_previous),
-            onPressed: () {
+            onPressed: () async {
               final idx = allSongs.indexWhere((s) => s.id == _currentSong!.id);
               if (idx > 0) {
-                setState(() {
-                  _currentSong = allSongs[idx - 1];
-                });
-                if (_currentSong!.filePath.startsWith('assets/')) {
-                  GlobalAudioPlayer.instance.setAsset(_currentSong!.filePath).then((_) {
-                    GlobalAudioPlayer.instance.play();
+                try {
+                  setState(() {
+                    _currentSong = allSongs[idx - 1];
                   });
-                } else {
-                  GlobalAudioPlayer.instance.setFilePath(_currentSong!.filePath).then((_) {
-                    GlobalAudioPlayer.instance.play();
-                  });
+                  if (await File(_currentSong!.filePath).exists()) {
+                    await GlobalAudioPlayer.instance
+                        .setFilePath(_currentSong!.filePath);
+                  } else {
+                    throw Exception("File not found: ${_currentSong!.filePath}");
+                  }
+                  await GlobalAudioPlayer.instance.play();
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to play song: $e')),
+                    );
+                  }
                 }
               }
             },
@@ -620,12 +650,22 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             builder: (context, snapshot) {
               final isPlaying = snapshot.data ?? false;
               return IconButton(
-                icon: Icon(isPlaying ? Icons.pause_circle_filled : Icons.play_circle_fill, size: 32),
+                icon: Icon(
+                    isPlaying ? Icons.pause_circle_filled : Icons.play_circle_fill,
+                    size: 32),
                 onPressed: () async {
-                  if (isPlaying) {
-                    await GlobalAudioPlayer.instance.pause();
-                  } else {
-                    await GlobalAudioPlayer.instance.play();
+                  try {
+                    if (isPlaying) {
+                      await GlobalAudioPlayer.instance.pause();
+                    } else {
+                      await GlobalAudioPlayer.instance.play();
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Failed to control playback: $e')),
+                      );
+                    }
                   }
                 },
               );
@@ -633,20 +673,26 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           ),
           IconButton(
             icon: const Icon(Icons.skip_next),
-            onPressed: () {
+            onPressed: () async {
               final idx = allSongs.indexWhere((s) => s.id == _currentSong!.id);
               if (idx < allSongs.length - 1) {
-                setState(() {
-                  _currentSong = allSongs[idx + 1];
-                });
-                if (_currentSong!.filePath.startsWith('assets/')) {
-                  GlobalAudioPlayer.instance.setAsset(_currentSong!.filePath).then((_) {
-                    GlobalAudioPlayer.instance.play();
+                try {
+                  setState(() {
+                    _currentSong = allSongs[idx + 1];
                   });
-                } else {
-                  GlobalAudioPlayer.instance.setFilePath(_currentSong!.filePath).then((_) {
-                    GlobalAudioPlayer.instance.play();
-                  });
+                  if (await File(_currentSong!.filePath).exists()) {
+                    await GlobalAudioPlayer.instance
+                        .setFilePath(_currentSong!.filePath);
+                  } else {
+                    throw Exception("File not found: ${_currentSong!.filePath}");
+                  }
+                  await GlobalAudioPlayer.instance.play();
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to play song: $e')),
+                    );
+                  }
                 }
               }
             },
@@ -691,7 +737,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           IconButton(
             icon: Icon(
               _songViewType == SongViewType.list ? Icons.grid_view : Icons.list,
-              color: Theme.of(context).colorScheme.onPrimary,
+              color: cs.onPrimary,
             ),
             tooltip: 'Toggle view',
             onPressed: () {
@@ -702,12 +748,16 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               });
             },
           ),
+          IconButton(
+            icon: Icon(Icons.add, color: cs.onPrimary),
+            tooltip: 'Add music files',
+            onPressed: pickMusicFile,
+          ),
           PopupMenuButton<String>(
             icon: Icon(Icons.more_vert, color: cs.onPrimary),
             onSelected: (value) {
               if (value == 'name') {
                 setState(() {
-                  customSongs.sort((a, b) => a.title.compareTo(b.title));
                   localSongs.sort((a, b) => a.title.compareTo(b.title));
                 });
               }
@@ -749,7 +799,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     if (_permissionDenied) {
                       return const Padding(
                         padding: EdgeInsets.all(32),
-                        child: Center(child: Text('Storage permission denied. Please enable it in settings.')),
+                        child: Center(
+                            child: Text(
+                                'Storage permission denied. Please enable it in settings.')),
                       );
                     }
                     if (snapshot.connectionState == ConnectionState.waiting) {
@@ -759,7 +811,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                       );
                     }
                     localSongs = snapshot.data ?? [];
-                    final songsToShow = filterSongs([...customSongs, ...localSongs]);
+                    final songsToShow = filterSongs(localSongs);
                     if (songsToShow.isEmpty) {
                       return const Padding(
                         padding: EdgeInsets.all(32),
@@ -773,9 +825,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     ? Center(
                   child: Text(
                     'No liked songs yet',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontSize: 18,
-                    ),
+                    style: tt.bodyMedium?.copyWith(fontSize: 18),
                   ),
                 )
                     : ListView(
@@ -784,7 +834,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                       padding: const EdgeInsets.all(12.0),
                       child: Text(
                         'Liked Songs',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        style: tt.titleLarge?.copyWith(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -794,39 +844,26 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                           (song) => ListTile(
                         leading: ClipRRect(
                           borderRadius: BorderRadius.circular(8),
-                          child: song.image != null
-                              ? Image.asset(
-                            song.image!,
-                            width: 50,
-                            height: 50,
-                            fit: BoxFit.cover,
-                            errorBuilder: (c, e, s) => Icon(Icons.music_note, size: 40, color: Theme.of(context).colorScheme.primary),
-                          )
-                              : QueryArtworkWidget(
+                          child: QueryArtworkWidget(
                             id: int.tryParse(song.id) ?? 0,
                             type: ArtworkType.AUDIO,
-                            nullArtworkWidget: Icon(Icons.music_note, size: 40, color: Theme.of(context).colorScheme.primary),
+                            nullArtworkWidget: Icon(Icons.music_note,
+                                size: 40, color: cs.primary),
                             artworkBorder: BorderRadius.circular(8),
                             artworkHeight: 50,
                             artworkWidth: 50,
                             artworkFit: BoxFit.cover,
                           ),
                         ),
-                        title: Text(
-                          song.title,
-                          style: Theme.of(context).textTheme.bodyLarge,
-                        ),
+                        title: Text(song.title, style: tt.bodyLarge),
                         subtitle: Text(
                           song.artist,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                          style: tt.bodyMedium?.copyWith(
+                            color: cs.onSurface.withOpacity(0.7),
                           ),
                         ),
                         trailing: IconButton(
-                          icon: Icon(
-                            Icons.favorite,
-                            color: Theme.of(context).colorScheme.error,
-                          ),
+                          icon: Icon(Icons.favorite, color: cs.error),
                           onPressed: () => toggleLike(song.id),
                         ),
                         onTap: () => _onSongPlay(song, likedSongs),
@@ -848,43 +885,99 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 }
 
-// AudioService handler for notification and background playback
 class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   final _player = GlobalAudioPlayer.instance;
 
   MyAudioHandler() {
     _notify();
-    _player.playerStateStream.listen((state) => _notify());
+    _player.playerStateStream.listen((state) {
+      _notify();
+      if (state.processingState == ProcessingState.completed) {
+        skipToNext();
+      }
+    });
     _player.currentIndexStream.listen((_) => _notify());
   }
 
   void _notify() {
-    final playing = _player.playing;
-    playbackState.add(playbackState.value.copyWith(
-      controls: [
-        MediaControl.skipToPrevious,
-        if (playing) MediaControl.pause else MediaControl.play,
-        MediaControl.skipToNext,
-        MediaControl.stop,
-      ],
-      playing: playing,
-      processingState: AudioProcessingState.ready,
-    ));
+    try {
+      final playing = _player.playing;
+      playbackState.add(playbackState.value.copyWith(
+        controls: [
+          MediaControl.skipToPrevious,
+          if (playing) MediaControl.pause else MediaControl.play,
+          MediaControl.skipToNext,
+          MediaControl.stop,
+        ],
+        playing: playing,
+        processingState: {
+          ProcessingState.idle: AudioProcessingState.idle,
+          ProcessingState.loading: AudioProcessingState.loading,
+          ProcessingState.buffering: AudioProcessingState.buffering,
+          ProcessingState.ready: AudioProcessingState.ready,
+          ProcessingState.completed: AudioProcessingState.completed,
+        }[_player.processingState] ?? AudioProcessingState.ready,
+      ));
+    } catch (e) {
+      print("Error in MyAudioHandler _notify: $e");
+    }
   }
 
   @override
-  Future<void> play() => _player.play();
+  Future<void> play() async {
+    try {
+      await _player.play();
+    } catch (e) {
+      print("Error playing audio: $e");
+    }
+  }
+
   @override
-  Future<void> pause() => _player.pause();
+  Future<void> pause() async {
+    try {
+      await _player.pause();
+    } catch (e) {
+      print("Error pausing audio: $e");
+    }
+  }
+
   @override
-  Future<void> stop() => _player.stop();
+  Future<void> stop() async {
+    try {
+      await _player.stop();
+    } catch (e) {
+      print("Error stopping audio: $e");
+    }
+  }
+
   @override
-  Future<void> skipToNext() => _player.seekToNext();
+  Future<void> seek(Duration position) async {
+    try {
+      await _player.seek(position);
+    } catch (e) {
+      print("Error seeking audio: $e");
+    }
+  }
+
   @override
-  Future<void> skipToPrevious() => _player.seekToPrevious();
+  Future<void> skipToNext() async {
+    try {
+      await _player.seekToNext();
+    } catch (e) {
+      print("Error skipping to next: $e");
+    }
+  }
+
+  @override
+  Future<void> skipToPrevious() async {
+    try {
+      await _player.seekToPrevious();
+    } catch (e) {
+      print("Error skipping to previous: $e");
+    }
+  }
 }
 
-// --- Cassette Disc Painter for Mini Player ---
 class _CassetteDiscPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -893,22 +986,21 @@ class _CassetteDiscPainter extends CustomPainter {
         colors: [Colors.grey.shade800, Colors.grey.shade400],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-      ).createShader(Rect.fromCircle(center: size.center(Offset.zero), radius: size.width / 2));
+      ).createShader(
+          Rect.fromCircle(center: size.center(Offset.zero), radius: size.width / 2));
     final Paint centerPaint = Paint()..color = Colors.black;
     final Paint holePaint = Paint()..color = Colors.white;
 
-    // Draw disc
     canvas.drawCircle(size.center(Offset.zero), size.width / 2, discPaint);
-    // Draw center
     canvas.drawCircle(size.center(Offset.zero), size.width / 6, centerPaint);
-    // Draw hole
     canvas.drawCircle(size.center(Offset.zero), size.width / 16, holePaint);
 
-    // Draw cassette tape holes (left/right)
     final Paint tapeHolePaint = Paint()..color = Colors.black.withOpacity(0.7);
     final double tapeHoleRadius = size.width / 10;
-    canvas.drawCircle(Offset(size.width * 0.28, size.height * 0.7), tapeHoleRadius, tapeHolePaint);
-    canvas.drawCircle(Offset(size.width * 0.72, size.height * 0.7), tapeHoleRadius, tapeHolePaint);
+    canvas.drawCircle(
+        Offset(size.width * 0.28, size.height * 0.7), tapeHoleRadius, tapeHolePaint);
+    canvas.drawCircle(
+        Offset(size.width * 0.72, size.height * 0.7), tapeHoleRadius, tapeHolePaint);
   }
 
   @override
@@ -919,12 +1011,17 @@ class PlayerPage extends StatefulWidget {
   final Song song;
   final List<Song> songs;
   final bool resumeInsteadOfRestart;
-  const PlayerPage({super.key, required this.song, required this.songs, this.resumeInsteadOfRestart = false});
+  const PlayerPage(
+      {super.key,
+        required this.song,
+        required this.songs,
+        this.resumeInsteadOfRestart = false});
   @override
   State<PlayerPage> createState() => _PlayerPageState();
 }
 
-class _PlayerPageState extends State<PlayerPage> with SingleTickerProviderStateMixin {
+class _PlayerPageState extends State<PlayerPage>
+    with SingleTickerProviderStateMixin {
   final AudioPlayer _player = GlobalAudioPlayer.instance;
   bool isShuffling = false;
   bool isRepeating = false;
@@ -936,6 +1033,7 @@ class _PlayerPageState extends State<PlayerPage> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
+
     _playlist = List.from(widget.songs);
     _currentIndex = _playlist.indexWhere((song) => song.id == widget.song.id);
     _discController = AnimationController(
@@ -944,7 +1042,6 @@ class _PlayerPageState extends State<PlayerPage> with SingleTickerProviderStateM
     );
     _isPlaying = _player.playing;
 
-    // Only call setState when play/pause state changes, not on every playerStateStream event
     bool? lastIsPlaying = _isPlaying;
     _player.playerStateStream.listen((state) {
       final isPlaying = state.playing;
@@ -976,17 +1073,18 @@ class _PlayerPageState extends State<PlayerPage> with SingleTickerProviderStateM
   void _playSong(Song song) async {
     try {
       if (_player.playing) await _player.stop();
-      if (song.filePath.startsWith('assets/')) {
-        await _player.setAsset(song.filePath);
-      } else {
+      if (await File(song.filePath).exists()) {
         await _player.setFilePath(song.filePath);
+      } else {
+        throw Exception("File not found: ${song.filePath}");
       }
       await _player.play();
       setState(() {});
     } catch (e) {
+      print("Error playing song: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to play the song: ${e.toString()}')),
+          SnackBar(content: Text('Failed to play the song: $e')),
         );
       }
     }
@@ -1003,7 +1101,8 @@ class _PlayerPageState extends State<PlayerPage> with SingleTickerProviderStateM
   void _playPreviousSong() {
     if (_playlist.isEmpty) return;
     setState(() {
-      _currentIndex = (_currentIndex - 1) >= 0 ? _currentIndex - 1 : _playlist.length - 1;
+      _currentIndex =
+      (_currentIndex - 1) >= 0 ? _currentIndex - 1 : _playlist.length - 1;
     });
     _playSong(_playlist[_currentIndex]);
   }
@@ -1068,23 +1167,16 @@ class _PlayerPageState extends State<PlayerPage> with SingleTickerProviderStateM
                     ],
                   ),
                   child: ClipOval(
-                    child: song.image != null
-                        ? Image.asset(
-                            song.image!,
-                            fit: BoxFit.cover,
-                            width: 210,
-                            height: 210,
-                            errorBuilder: (c, e, s) => Icon(Icons.music_note, size: 100, color: cs.primary),
-                          )
-                        : QueryArtworkWidget(
-                            id: int.tryParse(song.id) ?? 0,
-                            type: ArtworkType.AUDIO,
-                            nullArtworkWidget: Icon(Icons.music_note, size: 100, color: cs.primary),
-                            artworkBorder: BorderRadius.circular(105),
-                            artworkHeight: 210,
-                            artworkWidth: 210,
-                            artworkFit: BoxFit.cover,
-                          ),
+                    child: QueryArtworkWidget(
+                      id: int.tryParse(song.id) ?? 0,
+                      type: ArtworkType.AUDIO,
+                      nullArtworkWidget:
+                      Icon(Icons.music_note, size: 100, color: cs.primary),
+                      artworkBorder: BorderRadius.circular(105),
+                      artworkHeight: 210,
+                      artworkWidth: 210,
+                      artworkFit: BoxFit.cover,
+                    ),
                   ),
                 ),
               ),
@@ -1202,9 +1294,13 @@ class _PlayerPageState extends State<PlayerPage> with SingleTickerProviderStateM
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               IconButton(
-                icon: Icon(Icons.shuffle, color: isShuffling ? cs.primary : cs.onSurface.withOpacity(0.7)),
+                icon: Icon(
+                  Icons.shuffle,
+                  color: isShuffling ? Color(0xFFFFD700) : Colors.grey,
+                ),
                 onPressed: _toggleShuffle,
               ),
+
               const SizedBox(width: 8),
               IconButton(
                 icon: Icon(Icons.skip_previous_rounded, color: cs.primary, size: 36),
@@ -1216,13 +1312,22 @@ class _PlayerPageState extends State<PlayerPage> with SingleTickerProviderStateM
                 builder: (context, snapshot) {
                   final isPlaying = snapshot.data ?? false;
                   return GestureDetector(
-                    onTap: () {
-                      if (isPlaying) {
-                        _player.pause();
-                        _discController.stop();
-                      } else {
-                        _player.play();
-                        _discController.repeat();
+                    onTap: () async {
+                      try {
+                        if (isPlaying) {
+                          await _player.pause();
+                          _discController.stop();
+                        } else {
+                          await _player.play();
+                          _discController.repeat();
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                                content: Text('Failed to control playback: $e')),
+                          );
+                        }
                       }
                     },
                     child: Container(
@@ -1255,11 +1360,17 @@ class _PlayerPageState extends State<PlayerPage> with SingleTickerProviderStateM
               ),
               const SizedBox(width: 8),
               IconButton(
-                icon: Icon(isRepeating ? Icons.repeat_on : Icons.repeat, color: cs.primary),
+                icon: Icon(
+                  Icons.repeat,
+                  color: isRepeating ? Color(0xFFFFD700) : Colors.grey,
+                ),
+
+
                 onPressed: () {
                   setState(() {
                     isRepeating = !isRepeating;
-                    _player.setLoopMode(isRepeating ? LoopMode.one : LoopMode.off);
+                    _player.setLoopMode(
+                        isRepeating ? LoopMode.one : LoopMode.off);
                   });
                 },
               ),
@@ -1272,7 +1383,8 @@ class _PlayerPageState extends State<PlayerPage> with SingleTickerProviderStateM
               alignment: Alignment.centerLeft,
               child: Text(
                 "Lyrics",
-                style: tt.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: cs.primary),
+                style: tt.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold, color: cs.primary),
               ),
             ),
           ),
@@ -1282,7 +1394,8 @@ class _PlayerPageState extends State<PlayerPage> with SingleTickerProviderStateM
               child: SingleChildScrollView(
                 child: Text(
                   currentSong.lyrics,
-                  style: tt.bodyMedium?.copyWith(color: cs.onSurface.withOpacity(0.85)),
+                  style: tt.bodyMedium?.copyWith(
+                      color: cs.onSurface.withOpacity(0.85)),
                 ),
               ),
             ),
