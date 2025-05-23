@@ -1,42 +1,19 @@
-// main.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'theme.dart';
 import 'theme_provider.dart';
 import 'dart:math';
 
-void main() {
-  runApp(
-    ChangeNotifierProvider(create: (_) => ThemeProvider(), child: MyApp()),
-  );
-}
-
-class MyApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode:
-          Theme.of(context).brightness == Brightness.dark
-              ? ThemeMode.dark
-              : ThemeMode.light,
-      home: PaymentPage(),
-    );
-  }
-}
-
-// payment_page.dart
-
 class PaymentPage extends StatefulWidget {
+  final double amount;
+  const PaymentPage({Key? key, required this.amount}) : super(key: key);
+
   @override
   _PaymentPageState createState() => _PaymentPageState();
 }
 
-class _PaymentPageState extends State<PaymentPage> {
+class _PaymentPageState extends State<PaymentPage>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   bool _loading = false;
   bool _obscurePassword = true;
@@ -48,20 +25,63 @@ class _PaymentPageState extends State<PaymentPage> {
   final _passwordController = TextEditingController();
   final _inputCodeController = TextEditingController();
 
+  late AnimationController _payAnimController;
+  late Animation<double> _payFillAnimation;
+  int _currentCardIndex = 0;
+  late PageController _pageController;
+
+  final List<Map<String, String>> _cards = [
+    {
+      'cardNumber': '6037 9981 4878 4555',
+      'holder': 'Mohammad Jafari',
+      'validThru': '12 / 25',
+      'bank': 'SYMWALL',
+    },
+    {
+      'cardNumber': '6221 0612 4625 0072',
+      'holder': 'Parham RamazanZadeh',
+      'validThru': '09 / 27',
+      'bank': 'Bank Melli',
+    },
+  ];
+
   @override
   void initState() {
     super.initState();
     _generatedCode = _generateCode();
+    _payAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3000),
+    );
+    _payFillAnimation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _payAnimController, curve: Curves.easeInOut),
+    );
+    _pageController = PageController(initialPage: _currentCardIndex, viewportFraction: 0.88);
+
+    // شماره کارت را با فرمت درست نمایش بده
+    _cardController.addListener(() {
+      final text = _cardController.text.replaceAll('-', '-');
+      final newText = text.replaceAllMapped(RegExp(r".{1,4}"), (match) => "${match.group(0)} ");
+      if (_cardController.text != newText.trim()) {
+        final pos = _cardController.selection.baseOffset;
+        _cardController.value = TextEditingValue(
+          text: newText.trim(),
+          selection: TextSelection.collapsed(offset: min(newText.trim().length, pos + (newText.length - text.length))),
+        );
+      }
+    });
   }
 
   @override
   void dispose() {
+    _payAnimController.dispose();
     _cardController.dispose();
     _monthController.dispose();
     _yearController.dispose();
     _cvvController.dispose();
     _passwordController.dispose();
     _inputCodeController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -78,7 +98,8 @@ class _PaymentPageState extends State<PaymentPage> {
   void _onPayPressed() {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
-    Future.delayed(Duration(seconds: 2), () {
+    _payAnimController.forward(from: 0);
+    Future.delayed(const Duration(milliseconds: 1400), () {
       setState(() => _loading = false);
       _showSuccessDialog();
     });
@@ -89,31 +110,342 @@ class _PaymentPageState extends State<PaymentPage> {
     final background = Theme.of(context).scaffoldBackgroundColor;
     showDialog(
       context: context,
-      builder:
-          (_) => AlertDialog(
-            backgroundColor: background,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+      builder: (_) => AlertDialog(
+        backgroundColor: background,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Text(
+          'Payment Successful',
+          style: TextStyle(color: colorScheme.onBackground),
+        ),
+        content: Icon(
+          Icons.check_circle,
+          color: colorScheme.primary,
+          size: 60,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop(); // Close dialog
+              Navigator.of(context).pop(true); // Return to previous page
+            },
+            child: Text(
+              'Close',
+              style: TextStyle(color: colorScheme.primary),
             ),
-            title: Text(
-              'Payment Successful',
-              style: TextStyle(color: colorScheme.onBackground),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _nextCard() {
+    setState(() {
+      _currentCardIndex = (_currentCardIndex + 1) % _cards.length;
+      _pageController.animateToPage(
+        _currentCardIndex,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
+    });
+  }
+
+  Widget _build3DCard({
+    required Color color1,
+    required Color color2,
+    required double angle,
+    required double elevation,
+    required String cardNumber,
+    required String holder,
+    required String validThru,
+    required String bank,
+    bool isMain = false,
+  }) {
+    final theme = Theme.of(context);
+    return Transform(
+      alignment: Alignment.center,
+      transform: Matrix4.identity()
+        ..setEntry(3, 2, 0.001)
+        ..rotateZ(angle),
+      child: Container(
+        height: 200,
+        margin: EdgeInsets.only(bottom: isMain ? 0 : 24),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [color1, color2],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: [
+            BoxShadow(
+              color: color2.withOpacity(0.25),
+              blurRadius: elevation,
+              offset: Offset(0, elevation / 2),
             ),
-            content: Icon(
-              Icons.check_circle,
-              color: colorScheme.primary,
-              size: 60,
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text(
-                  'Close',
-                  style: TextStyle(color: colorScheme.primary),
+            if (isMain)
+              BoxShadow(
+                color: Colors.black.withOpacity(0.10),
+                blurRadius: 24,
+                offset: Offset(0, 12),
+              ),
+          ],
+        ),
+        padding: EdgeInsets.all(24),
+        child: Stack(
+          children: [
+            // Shine effect
+            Positioned(
+              left: 0,
+              top: 0,
+              child: Container(
+                width: 80,
+                height: 200,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.white.withOpacity(0.18),
+                      Colors.transparent,
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(22),
                 ),
               ),
-            ],
+            ),
+            // Card content
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  bank,
+                  style: theme.textTheme.titleLarge!.copyWith(
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 22,
+                    letterSpacing: 2,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  cardNumber,
+                  style: theme.textTheme.titleLarge!.copyWith(
+                    fontSize: 24,
+                    letterSpacing: 3,
+                    color: Colors.black,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'CARD HOLDER',
+                      style: theme.textTheme.bodyMedium!.copyWith(
+                        color: Colors.black,
+                        fontSize: 12,
+                      ),
+                    ),
+                    Text(
+                      'VALID THRU',
+                      style: theme.textTheme.bodyMedium!.copyWith(
+                        color: Colors.black,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      holder,
+                      style: theme.textTheme.bodyMedium!.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black,
+                      ),
+                    ),
+                    Text(
+                      validThru,
+                      style: theme.textTheme.bodyMedium!.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            // Chip
+            Positioned(
+              top: 38,
+              right: 24,
+              child: Container(
+                width: 38,
+                height: 28,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  gradient: LinearGradient(
+                    colors: [Colors.yellow.shade700, Colors.orange.shade400],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.15),
+                      blurRadius: 6,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Circles
+            Positioned(
+              bottom: 24,
+              right: 24,
+              child: Row(
+                children: [
+                  Container(
+                    width: 18,
+                    height: 18,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.7),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    width: 18,
+                    height: 18,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.4),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnimatedCardSlider() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final List<List<Color>> gradients = [
+      [colorScheme.primary, colorScheme.secondary],
+      [colorScheme.secondary.withOpacity(0.8), colorScheme.primary.withOpacity(0.7)],
+    ];
+    return SizedBox(
+      height: 210,
+      child: Stack(
+        children: [
+          PageView.builder(
+            controller: _pageController,
+            itemCount: _cards.length,
+            physics: const NeverScrollableScrollPhysics(),
+            itemBuilder: (context, index) {
+              final card = _cards[index];
+              final isMain = index == _currentCardIndex;
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 400),
+                curve: Curves.easeInOut,
+                margin: EdgeInsets.symmetric(horizontal: isMain ? 0 : 12, vertical: isMain ? 0 : 16),
+                child: Transform.scale(
+                  scale: isMain ? 1.0 : 0.93,
+                  child: _build3DCard(
+                    color1: gradients[index][0],
+                    color2: gradients[index][1],
+                    angle: isMain ? 0.05 : -0.08,
+                    elevation: isMain ? 28 : 12,
+                    cardNumber: card['cardNumber']!,
+                    holder: card['holder']!,
+                    validThru: card['validThru']!,
+                    bank: card['bank']!,
+                    isMain: isMain,
+                  ),
+                ),
+              );
+            },
           ),
+          Positioned(
+            right: 0,
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child: IconButton(
+                icon: Icon(Icons.arrow_forward_ios_rounded, color: colorScheme.primary, size: 32),
+                onPressed: _nextCard,
+                splashRadius: 28,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAnimatedPayButton() {
+    final colorScheme = Theme.of(context).colorScheme;
+    return AnimatedBuilder(
+      animation: _payFillAnimation,
+      builder: (context, child) {
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            // دکمه با افکت پر شدن آب مشکی
+            Container(
+              width: double.infinity,
+              height: 56,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                color: colorScheme.primary,
+                boxShadow: [
+                  BoxShadow(
+                    color: colorScheme.primary.withOpacity(0.18),
+                    blurRadius: 12,
+                    offset: Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: CustomPaint(
+                  painter: _ButtonLiquidFillPainter(_payFillAnimation.value),
+                  child: Container(),
+                ),
+              ),
+            ),
+            _loading
+                ? CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation(colorScheme.onPrimary),
+                  )
+                : Positioned(
+                    left: 0,
+                    right: 0,
+                    child: Text(
+                      'Pay',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: colorScheme.onPrimary,
+                        fontSize: 21,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 2,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black.withOpacity(0.08),
+                            blurRadius: 2,
+                          )
+                        ],
+                      ),
+                    ),
+                  ),
+          ],
+        );
+      },
     );
   }
 
@@ -126,130 +458,33 @@ class _PaymentPageState extends State<PaymentPage> {
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
           child: Form(
             key: _formKey,
             child: Column(
               children: [
-                // Card Preview (uses theme colors)
-                Stack(
-                  children: [
-                    Container(
-                      height: 200,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [colorScheme.primary, colorScheme.secondary],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black45,
-                            blurRadius: 20,
-                            offset: Offset(0, 10),
-                          ),
-                        ],
-                      ),
-                      padding: EdgeInsets.all(24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'BANK',
-                            style: theme.textTheme.titleLarge!.copyWith(
-                              color: Colors.black,
-                            ),
-                          ),
-                          Spacer(),
-                          Text(
-                            '6037 9981 4878 4555',
-                            style: theme.textTheme.titleLarge!.copyWith(
-                              fontSize: 24,
-                              letterSpacing: 3,
-                              color: Colors.black,
-                            ),
-                          ),
-                          SizedBox(height: 12),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'CARD HOLDER',
-                                style: theme.textTheme.bodyMedium!.copyWith(
-                                  color: Colors.black54,
-                                  fontSize: 12,
-                                ),
-                              ),
-                              Text(
-                                'VALID THRU',
-                                style: theme.textTheme.bodyMedium!.copyWith(
-                                  color: Colors.black54,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Mohammad Jafari',
-                                style: theme.textTheme.bodyMedium!.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.black,
-                                ),
-                              ),
-                              Text(
-                                '12 / 25',
-                                style: theme.textTheme.bodyMedium!.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.black,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    Positioned.fill(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          gradient: RadialGradient(
-                            center: Alignment.topLeft,
-                            radius: 1,
-                            colors: [
-                              Colors.white.withOpacity(0.3),
-                              Colors.transparent,
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 24),
+                _buildAnimatedCardSlider(),
+                const SizedBox(height: 24),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'Amount: \$100.00',
+                    'Amount: \$${widget.amount.toStringAsFixed(2)}',
                     style: theme.textTheme.titleLarge!,
                   ),
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
+                // شماره کارت با فرمت 4 رقم 4 رقم
                 CustomTextField(
                   label: 'Card Number',
                   controller: _cardController,
                   keyboardType: TextInputType.number,
-                  maxLength: 16,
-                  validator:
-                      (v) =>
-                          v != null && v.length == 16
-                              ? null
-                              : 'Enter 16-digit card number',
+                  maxLength: 19, // 16 رقم + 3 فاصله
+                  validator: (v) {
+                    final numbers = v?.replaceAll(' ', '') ?? '';
+                    return numbers.length == 16 ? null : 'Enter 16-digit card number';
+                  },
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 Row(
                   children: [
                     Expanded(
@@ -264,36 +499,32 @@ class _PaymentPageState extends State<PaymentPage> {
                         },
                       ),
                     ),
-                    SizedBox(width: 12),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: CustomTextField(
                         label: 'Year',
                         controller: _yearController,
                         keyboardType: TextInputType.number,
                         maxLength: 2,
-                        validator:
-                            (v) => v != null && v.length == 2 ? null : 'YY',
+                        validator: (v) => v != null && v.length == 2 ? null : 'YY',
                       ),
                     ),
                   ],
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 CustomTextField(
                   label: 'CVV2',
                   controller: _cvvController,
                   keyboardType: TextInputType.number,
                   maxLength: 4,
-                  validator:
-                      (v) => v != null && v.length == 4 ? null : 'Enter CVV2',
+                  validator: (v) => v != null && v.length == 4 ? null : 'Enter CVV2',
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 TextFormField(
                   controller: _passwordController,
                   style: theme.textTheme.bodyMedium,
                   obscureText: _obscurePassword,
-                  validator:
-                      (v) =>
-                          v != null && v.isNotEmpty ? null : 'Enter password',
+                  validator: (v) => v != null && v.isNotEmpty ? null : 'Enter password',
                   decoration: InputDecoration(
                     labelText: 'Password',
                     filled: true,
@@ -305,19 +536,14 @@ class _PaymentPageState extends State<PaymentPage> {
                     ),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_off
-                            : Icons.visibility,
+                        _obscurePassword ? Icons.visibility_off : Icons.visibility,
                       ),
                       color: colorScheme.onSurface,
-                      onPressed:
-                          () => setState(
-                            () => _obscurePassword = !_obscurePassword,
-                          ),
+                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                     ),
                   ),
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 Row(
                   children: [
                     Expanded(
@@ -339,36 +565,16 @@ class _PaymentPageState extends State<PaymentPage> {
                         controller: _inputCodeController,
                         keyboardType: TextInputType.number,
                         maxLength: 6,
-                        validator:
-                            (v) =>
-                                v != null && v == _generatedCode
-                                    ? null
-                                    : 'Incorrect code',
+                        validator: (v) =>
+                            v != null && v == _generatedCode ? null : 'Incorrect code',
                       ),
                     ),
                   ],
                 ),
-                SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: _loading ? null : _onPayPressed,
-                    child:
-                        _loading
-                            ? CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation(
-                                colorScheme.onPrimary,
-                              ),
-                            )
-                            : Text(
-                              'Pay',
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.onPrimary,
-                                fontSize: 21,
-                              ),
-                            ),
-                  ),
+                const SizedBox(height: 24),
+                GestureDetector(
+                  onTap: _loading ? null : _onPayPressed,
+                  child: _buildAnimatedPayButton(),
                 ),
               ],
             ),
@@ -377,6 +583,40 @@ class _PaymentPageState extends State<PaymentPage> {
       ),
     );
   }
+}
+
+class _LiquidFillPainter extends CustomPainter {
+  final double fillPercent; // 0.0 to 1.0
+  final Color color;
+  _LiquidFillPainter(this.fillPercent, this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color.withOpacity(0.7);
+    final double fillHeight = size.height * fillPercent;
+    final path = Path()
+      ..moveTo(0, size.height)
+      ..lineTo(0, size.height - fillHeight)
+      ..quadraticBezierTo(
+        size.width * 0.25,
+        size.height - fillHeight - 8 * (1 - fillPercent),
+        size.width * 0.5,
+        size.height - fillHeight + 8 * fillPercent,
+      )
+      ..quadraticBezierTo(
+        size.width * 0.75,
+        size.height - fillHeight - 8 * (1 - fillPercent),
+        size.width,
+        size.height - fillHeight,
+      )
+      ..lineTo(size.width, size.height)
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_LiquidFillPainter oldDelegate) =>
+      oldDelegate.fillPercent != fillPercent || oldDelegate.color != color;
 }
 
 class CustomTextField extends StatelessWidget {
@@ -415,4 +655,38 @@ class CustomTextField extends StatelessWidget {
       ),
     );
   }
+}
+
+// افکت پر شدن آب مشکی برای کل دکمه
+class _ButtonLiquidFillPainter extends CustomPainter {
+  final double fillPercent; // 0.0 to 1.0
+  _ButtonLiquidFillPainter(this.fillPercent);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = Colors.black.withOpacity(0.95);
+    final double fillHeight = size.height * fillPercent;
+    final path = Path()
+      ..moveTo(0, size.height)
+      ..lineTo(0, size.height - fillHeight)
+      ..quadraticBezierTo(
+        size.width * 0.25,
+        size.height - fillHeight - 8 * (1 - fillPercent),
+        size.width * 0.5,
+        size.height - fillHeight + 8 * fillPercent,
+      )
+      ..quadraticBezierTo(
+        size.width * 0.75,
+        size.height - fillHeight - 8 * (1 - fillPercent),
+        size.width,
+        size.height - fillHeight,
+      )
+      ..lineTo(size.width, size.height)
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_ButtonLiquidFillPainter oldDelegate) =>
+      oldDelegate.fillPercent != fillPercent;
 }

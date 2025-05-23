@@ -5,6 +5,7 @@ import 'theme_provider.dart';
 import 'theme.dart';
 import 'sign_up_screen.dart';
 import 'home-page.dart';
+import 'paymentPage.dart';
 import 'userProfile.dart';
 import 'paymentPage.dart';
 
@@ -27,8 +28,9 @@ class MyApp extends StatelessWidget {
       home: SignUpScreen(),
       routes: {
         '/profile': (_) => ProfilePage(),
-        '/payment': (_) => PaymentPage(),
+        '/payment': (_) => PaymentPage(amount: 100.0),
       },
     );
   }
 }
+

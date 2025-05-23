@@ -436,7 +436,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     onPressed: () {
                       Navigator.of(
                         context,
-                      ).push(MaterialPageRoute(builder: (_) => PaymentPage()));
+                      ).push(MaterialPageRoute(builder: (_) => PaymentPage(amount: 100.0)));
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Theme.of(context).colorScheme.primary,
@@ -453,7 +453,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     onPressed: () {
                       Navigator.of(
                         context,
-                      ).push(MaterialPageRoute(builder: (_) => PaymentPage()));
+                      ).push(MaterialPageRoute(builder: (_) => PaymentPage(amount: 100.0)));
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Theme.of(context).colorScheme.primary,
@@ -470,7 +470,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     onPressed: () {
                       Navigator.of(
                         context,
-                      ).push(MaterialPageRoute(builder: (_) => PaymentPage()));
+                      ).push(MaterialPageRoute(builder: (_) => PaymentPage(amount: 100.0)));
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Theme.of(context).colorScheme.primary,
@@ -614,3 +614,4 @@ class SupportChatPage extends StatelessWidget {
     );
   }
 }
+

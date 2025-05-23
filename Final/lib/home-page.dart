@@ -871,7 +871,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     ),
                   ],
                 ),
-                const MusicShopPage(),
+                Builder(
+                  builder: (context) => MusicShopPage(
+                    // اگر MusicShopPage پارامتر ندارد، همین را نگه دار
+                  ),
+                ),
               ],
             ),
             Align(
@@ -881,7 +885,36 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           ],
         ),
       ),
+      floatingActionButton: currentIndex == 2
+          ? null
+          : null, // اگر لازم شد
     );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // اگر از push برای رفتن به MusicShopPage استفاده می‌کنی:
+    Future.microtask(() async {
+      if (currentIndex == 2) {
+        final result = await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => MusicShopPage()),
+        );
+        if (result is ShopSong) {
+          setState(() {
+            localSongs.add(Song(
+              id: result.id,
+              title: result.title,
+              artist: result.artist,
+              image: null,
+              filePath: '', // اگر فایل دانلود شد، مسیر را قرار بده
+              lyrics: '',
+            ));
+          });
+        }
+      }
+    });
   }
 }
 
