@@ -519,7 +519,7 @@ class _SongDetailPageState extends State<SongDetailPage> {
         setState(() {
           downloadProgress = i / 100;
         });
-        await Future.delayed(const Duration(milliseconds: 15));
+        await Future.delayed(const Duration(milliseconds: 10));
       }
 
       final savedPath = await _copyAssetToDownloads(assetPath, fileName);
@@ -530,6 +530,13 @@ class _SongDetailPageState extends State<SongDetailPage> {
 
       if (savedPath != null) {
         // آهنگ asset را به HomePage اضافه کن
+        // به جای pop، یک اسنک بار موفقیت نمایش بده و آهنگ را به لیست دانلود شده اضافه کن
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Download completed!')),
+          );
+        }
+        // آهنگ را به صورت Map به صفحه قبل برگردان
         Navigator.pop(context, {
           'id': widget.song.id,
           'title': widget.song.title,
@@ -543,7 +550,6 @@ class _SongDetailPageState extends State<SongDetailPage> {
       setState(() {
         isDownloading = false;
       });
-      // برای آهنگ‌های غیر asset
       Navigator.pop(context, widget.song);
     }
   }
