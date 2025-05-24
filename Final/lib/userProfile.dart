@@ -21,11 +21,6 @@ class _UserProfileState extends State<UserProfile> {
 }
 
 class ProfilePage extends StatefulWidget {
-  // final ValueChanged<bool> onThemeChange;
-
-  // final bool isDark;
-  // ProfilePage({required this.onThemeChange, required this.isDark});
-
   @override
   _ProfilePageState createState() => _ProfilePageState();
 }
@@ -125,14 +120,14 @@ class _ProfilePageState extends State<ProfilePage> {
         actions: [
           IconButton(
             icon: Icon(
-              Provider.of<ThemeProvider>(context).isDarkMode
-                  ? Icons.dark_mode
-                  : Icons.light_mode,
+              isDark ? Icons.dark_mode : Icons.light_mode,
               color: Theme.of(context).colorScheme.primary,
             ),
             onPressed: () {
-              final prov = Provider.of<ThemeProvider>(context, listen: false);
-              prov.toggleTheme(!prov.isDarkMode);
+
+              Provider.of<ThemeProvider>(context, listen: false)
+                  .toggleTheme(!isDark);
+
             },
           ),
         ],
