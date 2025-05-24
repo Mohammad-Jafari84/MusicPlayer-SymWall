@@ -1049,7 +1049,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.favorite), label: 'Liked'),
           BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Shop'),
-          BottomNavigationBarItem(icon: Icon(Icons.download), label: 'Downloads'), // NEW
+          // BottomNavigationBarItem(icon: Icon(Icons.download), label: 'Downloads'), // حذف شد
         ],
       ),
       body: SafeArea(
@@ -1075,7 +1075,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                         child: Center(child: CircularProgressIndicator()),
                       );
                     }
-                    localSongs = snapshot.data ?? [];
+                    // فقط اگر localSongs خالی بود مقداردهی کن
+                    if (localSongs.isEmpty && snapshot.data != null) {
+                      localSongs = snapshot.data!;
+                    }
                     // ترکیب آهنگ‌های لوکال و دانلود شده (بدون تکرار)
                     final allSongsSet = <String, Song>{};
                     for (var s in localSongs) {
@@ -1178,7 +1181,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     key: UniqueKey(),
                   ),
                 ),
-                _buildDownloadsTab(),
               ],
             ),
             Align(
@@ -1191,180 +1193,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       floatingActionButton: currentIndex == 2
           ? null
           : null, // اگر لازم شد
-    );
-  }
-
-  Widget _buildDownloadsTab() {
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
-    if (downloadedSongs.isEmpty) {
-      return Center(
-        child: Text(
-          'No downloaded songs yet.',
-          style: tt.bodyLarge,
-        ),
-      );
-    }
-    return ListView.builder(
-      itemCount: downloadedSongs.length,
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      itemBuilder: (context, index) {
-        final song = downloadedSongs[index];
-        final isPlaying = _currentSong?.id == song.id;
-        return Container(
-          margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeInOut,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                if (isPlaying)
-                  BoxShadow(
-                    color: cs.primary.withOpacity(0.25),
-                    blurRadius: 18,
-                    spreadRadius: 2,
-                    offset: Offset(0, 6),
-                  ),
-                BoxShadow(
-                  color: cs.onSurface.withOpacity(0.07),
-                  blurRadius: 8,
-                  spreadRadius: 1,
-                  offset: Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Card(
-              color: isPlaying
-                  ? cs.primary.withOpacity(0.13)
-                  : cs.surface,
-              elevation: isPlaying ? 10 : 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
-                side: BorderSide(
-                  color: isPlaying ? cs.primary : cs.onSurface.withOpacity(0.13),
-                  width: isPlaying ? 2.5 : 1,
-                ),
-              ),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(18),
-                onTap: () => _onSongPlay(song, downloadedSongs),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-                  child: Row(
-                    children: [
-                      Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          if (isPlaying)
-                            Container(
-                              width: 58,
-                              height: 58,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: RadialGradient(
-                                  colors: [
-                                    cs.primary.withOpacity(0.18),
-                                    cs.primary.withOpacity(0.07),
-                                    Colors.transparent,
-                                  ],
-                                  stops: const [0.6, 0.9, 1.0],
-                                ),
-                              ),
-                            ),
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 250),
-                            width: isPlaying ? 54 : 48,
-                            height: isPlaying ? 54 : 48,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                if (isPlaying)
-                                  BoxShadow(
-                                    color: cs.primary.withOpacity(0.18),
-                                    blurRadius: 10,
-                                    spreadRadius: 2,
-                                  ),
-                              ],
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: song.image != null && song.image!.startsWith('assets/')
-                                  ? Image.asset(
-                                song.image!,
-                                width: 48,
-                                height: 48,
-                                fit: BoxFit.cover,
-                                errorBuilder: (c, e, s) => Icon(Icons.music_note, size: 32, color: cs.primary),
-                              )
-                                  : QueryArtworkWidget(
-                                id: int.tryParse(song.id) ?? 0,
-                                type: ArtworkType.AUDIO,
-                                nullArtworkWidget: Icon(Icons.music_note, size: 32, color: cs.primary),
-                                artworkBorder: BorderRadius.circular(12),
-                                artworkHeight: 48,
-                                artworkWidth: 48,
-                                artworkFit: BoxFit.cover,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              song.title,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: isPlaying ? cs.primary : cs.onSurface,
-                                shadows: isPlaying
-                                    ? [
-                                  Shadow(
-                                    color: cs.primary.withOpacity(0.18),
-                                    blurRadius: 8,
-                                    offset: Offset(1, 1),
-                                  ),
-                                ]
-                                    : [],
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              song.artist,
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: isPlaying
-                                    ? cs.primary.withOpacity(0.7)
-                                    : Colors.grey[600],
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        icon: Icon(
-                          likedSongIds.contains(song.id) ? Icons.favorite : Icons.favorite_border,
-                          color: likedSongIds.contains(song.id) ? Colors.red : Colors.grey,
-                          size: 22,
-                        ),
-                        onPressed: () => toggleLike(song.id),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
     );
   }
 
@@ -1941,7 +1769,3 @@ class _PlayerPageState extends State<PlayerPage>
     );
   }
 }
-
-
-
-
