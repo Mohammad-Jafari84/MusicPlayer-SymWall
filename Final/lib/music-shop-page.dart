@@ -472,12 +472,22 @@ class _SongDetailPageState extends State<SongDetailPage> {
   Future<String?> _copyAssetToDownloads(String assetPath, String fileName) async {
     try {
       final byteData = await rootBundle.load(assetPath);
-      final appDocDir = await getApplicationDocumentsDirectory();
-      final downloadDir = Directory('${appDocDir.path}/DownloadedMusic');
-      if (!await downloadDir.exists()) {
-        await downloadDir.create(recursive: true);
+      Directory? musicDir;
+      if (Platform.isAndroid) {
+        // فولدر Music عمومی
+        musicDir = Directory('/storage/emulated/0/Music');
+        if (!await musicDir.exists()) {
+          await musicDir.create(recursive: true);
+        }
+      } else {
+        // برای iOS یا fallback
+        final appDocDir = await getApplicationDocumentsDirectory();
+        musicDir = Directory('${appDocDir.path}/DownloadedMusic');
+        if (!await musicDir.exists()) {
+          await musicDir.create(recursive: true);
+        }
       }
-      final audioFile = File('${downloadDir.path}/$fileName');
+      final audioFile = File('${musicDir.path}/$fileName');
       await audioFile.writeAsBytes(byteData.buffer.asUint8List());
       return audioFile.path;
     } catch (e) {
@@ -504,7 +514,6 @@ class _SongDetailPageState extends State<SongDetailPage> {
     }
 
     if (assetPath != null && fileName != null) {
-      // شبیه‌سازی پیشرفت دانلود
       for (int i = 0; i <= 100; i += 2) {
         if (!mounted) return;
         setState(() {

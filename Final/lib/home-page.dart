@@ -1090,7 +1090,34 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                         child: Center(child: Text('No music found.')),
                       );
                     }
-                    return _buildSongList(songsToShow);
+                    return Column(
+                      children: [
+                        if (downloadedSongs.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8, left: 16, right: 16),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                'Downloaded from Shop',
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
+                            ),
+                          ),
+                        if (downloadedSongs.isNotEmpty)
+                          SizedBox(
+                            height: 120,
+                            child: ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: downloadedSongs.length,
+                              itemBuilder: (context, index) {
+                                final song = downloadedSongs[index];
+                                return _buildSongGridTile(song, downloadedSongs);
+                              },
+                            ),
+                          ),
+                        Expanded(child: _buildSongList(songsToShow)),
+                      ],
+                    );
                   },
                 ),
                 likedSongs.isEmpty
@@ -1738,4 +1765,5 @@ class _PlayerPageState extends State<PlayerPage>
     );
   }
 }
+
 
