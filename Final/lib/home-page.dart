@@ -79,6 +79,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   bool _isActuallyPlaying = false;
   AudioHandler? _audioHandler;
 
+  // Add shuffle state and playlist for mini player
+  bool _miniPlayerShuffling = false;
+  List<Song> _miniPlayerPlaylist = [];
+  int _miniPlayerCurrentIndex = 0;
+
   @override
   void initState() {
     super.initState();
@@ -108,6 +113,18 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         } else {
           _cassetteController.stop();
         }
+      }
+    });
+
+    // Initialize mini player playlist and shuffle state
+    _miniPlayerPlaylist = localSongs;
+    _miniPlayerCurrentIndex = 0;
+    _miniPlayerShuffling = false;
+
+    // Listen for song completion globally (even outside PlayerPage)
+    GlobalAudioPlayer.instance.playerStateStream.listen((state) {
+      if (state.processingState == ProcessingState.completed) {
+        _handleMiniPlayerNext();
       }
     });
   }
@@ -333,17 +350,100 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   List<Song> get allSongs => localSongs;
 
+  // Fix: Always play the selected song when user taps on a song
   void _onSongPlay(Song song, List<Song> playlist) {
     setState(() {
       _currentSong = song;
       _isPlaying = true;
+      _miniPlayerPlaylist = List<Song>.from(playlist);
+      _miniPlayerCurrentIndex = playlist.indexWhere((s) => s.id == song.id);
+      _miniPlayerShuffling = isShufflingGlobal;
     });
+    _playMiniPlayerSong(force: true); // Always play the selected song
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => PlayerPage(song: song, songs: playlist),
+        builder: (_) => PlayerPage(
+          song: song,
+          songs: playlist,
+          resumeInsteadOfRestart: true,
+          onShuffleChanged: (shuffling) {
+            setState(() {
+              _miniPlayerShuffling = shuffling;
+            });
+          },
+        ),
       ),
     );
+  }
+
+  // Track shuffle state globally
+  bool get isShufflingGlobal => _miniPlayerShuffling;
+
+  // Handle next for mini player (with shuffle support, only if shuffle is ON)
+  void _handleMiniPlayerNext() {
+    setState(() {
+      if (_miniPlayerPlaylist.isEmpty) return;
+      if (_miniPlayerShuffling) {
+        // Only shuffle if shuffle is ON
+        final possible = List<Song>.from(_miniPlayerPlaylist)
+          ..removeAt(_miniPlayerCurrentIndex);
+        if (possible.isNotEmpty) {
+          final nextSong = (possible..shuffle()).first;
+          _miniPlayerCurrentIndex =
+              _miniPlayerPlaylist.indexWhere((s) => s.id == nextSong.id);
+          _currentSong = nextSong;
+        }
+      } else {
+        // Only go to next in order if shuffle is OFF
+        _miniPlayerCurrentIndex =
+            (_miniPlayerCurrentIndex + 1) % _miniPlayerPlaylist.length;
+        _currentSong = _miniPlayerPlaylist[_miniPlayerCurrentIndex];
+      }
+      _playMiniPlayerSong(force: true);
+    });
+  }
+
+  // Handle previous for mini player (with shuffle support, only if shuffle is ON)
+  void _handleMiniPlayerPrevious() {
+    setState(() {
+      if (_miniPlayerPlaylist.isEmpty) return;
+      if (_miniPlayerShuffling) {
+        final possible = List<Song>.from(_miniPlayerPlaylist)
+          ..removeAt(_miniPlayerCurrentIndex);
+        if (possible.isNotEmpty) {
+          final prevSong = (possible..shuffle()).first;
+          _miniPlayerCurrentIndex =
+              _miniPlayerPlaylist.indexWhere((s) => s.id == prevSong.id);
+          _currentSong = prevSong;
+        }
+      } else {
+        _miniPlayerCurrentIndex = (_miniPlayerCurrentIndex - 1) >= 0
+            ? _miniPlayerCurrentIndex - 1
+            : _miniPlayerPlaylist.length - 1;
+        _currentSong = _miniPlayerPlaylist[_miniPlayerCurrentIndex];
+      }
+      _playMiniPlayerSong(force: true);
+    });
+  }
+
+  // Fix: Always force play the selected song
+  Future<void> _playMiniPlayerSong({bool force = false}) async {
+    try {
+      if (_currentSong == null) return;
+      if (_currentSong!.filePath.isNotEmpty &&
+          await File(_currentSong!.filePath).exists()) {
+        // Always set file path and play, even if it's the same song (force playback)
+        await GlobalAudioPlayer.instance.setFilePath(_currentSong!.filePath);
+        await GlobalAudioPlayer.instance.play();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to play song: $e')),
+        );
+      }
+    }
   }
 
   Widget _buildSongTile(Song song, List<Song> playlist) {
@@ -591,8 +691,13 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   MaterialPageRoute(
                     builder: (_) => PlayerPage(
                       song: _currentSong!,
-                      songs: allSongs,
+                      songs: _miniPlayerPlaylist,
                       resumeInsteadOfRestart: true,
+                      onShuffleChanged: (shuffling) {
+                        setState(() {
+                          _miniPlayerShuffling = shuffling;
+                        });
+                      },
                     ),
                   ),
                 );
@@ -621,29 +726,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           ),
           IconButton(
             icon: const Icon(Icons.skip_previous),
-            onPressed: () async {
-              final idx = allSongs.indexWhere((s) => s.id == _currentSong!.id);
-              if (idx > 0) {
-                try {
-                  setState(() {
-                    _currentSong = allSongs[idx - 1];
-                  });
-                  if (await File(_currentSong!.filePath).exists()) {
-                    await GlobalAudioPlayer.instance
-                        .setFilePath(_currentSong!.filePath);
-                  } else {
-                    throw Exception("File not found: ${_currentSong!.filePath}");
-                  }
-                  await GlobalAudioPlayer.instance.play();
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Failed to play song: $e')),
-                    );
-                  }
-                }
-              }
-            },
+            onPressed: _handleMiniPlayerPrevious,
           ),
           StreamBuilder<bool>(
             stream: GlobalAudioPlayer.instance.playingStream,
@@ -673,29 +756,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           ),
           IconButton(
             icon: const Icon(Icons.skip_next),
-            onPressed: () async {
-              final idx = allSongs.indexWhere((s) => s.id == _currentSong!.id);
-              if (idx < allSongs.length - 1) {
-                try {
-                  setState(() {
-                    _currentSong = allSongs[idx + 1];
-                  });
-                  if (await File(_currentSong!.filePath).exists()) {
-                    await GlobalAudioPlayer.instance
-                        .setFilePath(_currentSong!.filePath);
-                  } else {
-                    throw Exception("File not found: ${_currentSong!.filePath}");
-                  }
-                  await GlobalAudioPlayer.instance.play();
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Failed to play song: $e')),
-                    );
-                  }
-                }
-              }
-            },
+            onPressed: _handleMiniPlayerNext,
           ),
         ],
       ),
@@ -1044,11 +1105,13 @@ class PlayerPage extends StatefulWidget {
   final Song song;
   final List<Song> songs;
   final bool resumeInsteadOfRestart;
+  final void Function(bool shuffling)? onShuffleChanged;
   const PlayerPage(
       {super.key,
         required this.song,
         required this.songs,
-        this.resumeInsteadOfRestart = false});
+        this.resumeInsteadOfRestart = false,
+        this.onShuffleChanged});
   @override
   State<PlayerPage> createState() => _PlayerPageState();
 }
@@ -1178,6 +1241,7 @@ class _PlayerPageState extends State<PlayerPage>
   void _toggleShuffle() {
     setState(() {
       isShuffling = !isShuffling;
+      widget.onShuffleChanged?.call(isShuffling);
       if (isShuffling) {
         final currentSong = _playlist[_currentIndex];
         _playlist.shuffle();
@@ -1462,4 +1526,6 @@ class _PlayerPageState extends State<PlayerPage>
     );
   }
 }
+
+
 
