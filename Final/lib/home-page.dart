@@ -47,7 +47,7 @@ class Song extends ISuspensionBean {
   final String? image;
   final String filePath;
   final String lyrics;
-  String tag; // برای AZListView
+  String tag;
 
   Song({
     required this.id,
@@ -387,6 +387,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           onShuffleChanged: (shuffling) {
             setState(() {
               _miniPlayerShuffling = shuffling;
+            });
+          },
+          onSongChanged: (newSong) {
+            setState(() {
+              _currentSong = newSong;
+              _miniPlayerCurrentIndex = playlist.indexWhere((s) => s.id == newSong.id);
             });
           },
         ),
@@ -901,6 +907,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                           _miniPlayerShuffling = shuffling;
                         });
                       },
+                      onSongChanged: (newSong) {
+                        setState(() {
+                          _currentSong = newSong;
+                          _miniPlayerCurrentIndex = _miniPlayerPlaylist.indexWhere((s) => s.id == newSong.id);
+                        });
+                      },
                     ),
                   ),
                 );
@@ -1352,11 +1364,13 @@ class PlayerPage extends StatefulWidget {
   final List<Song> songs;
   final bool resumeInsteadOfRestart;
   final void Function(bool shuffling)? onShuffleChanged;
+  final void Function(Song)? onSongChanged;
   const PlayerPage(
       {super.key,
         required this.song,
         required this.songs,
         this.resumeInsteadOfRestart = false,
+        this.onSongChanged,
         this.onShuffleChanged});
   @override
   State<PlayerPage> createState() => _PlayerPageState();
@@ -1446,6 +1460,7 @@ class _PlayerPageState extends State<PlayerPage>
         _currentIndex = newIndex;
         _cachedArtwork = _buildArtwork(song);
       });
+      widget.onSongChanged?.call(song);
       if (_player.playing) await _player.stop();
       if (song.filePath.isNotEmpty && await File(song.filePath).exists()) {
         await _player.setFilePath(song.filePath);
@@ -1562,7 +1577,7 @@ class _PlayerPageState extends State<PlayerPage>
             Theme.of(context).colorScheme.secondary.withOpacity(0.5),
           ],
           durations: [3500, 19440],
-          heightPercentages: [0.65, 0.66],
+          heightPercentages: [0.60, 0.66],
         ),
         backgroundColor: Colors.transparent,
         size: const Size(double.infinity, 60),
@@ -1601,6 +1616,7 @@ class _PlayerPageState extends State<PlayerPage>
           ),
         ],
       ),
+
       body: Column(
         children: [
           const SizedBox(height: 16),
@@ -1628,7 +1644,11 @@ class _PlayerPageState extends State<PlayerPage>
               ],
             ),
           ),
-          _buildWaveform(),
+          AnimatedOpacity(
+            opacity: _isPlaying ? 1.0 : 0.0,
+            duration: Duration(milliseconds: 400),
+            child: _buildWaveform(),
+          ),
           StreamBuilder<Duration?>(
             stream: _player.durationStream,
             builder: (context, snapshot) {
@@ -1660,7 +1680,7 @@ class _PlayerPageState extends State<PlayerPage>
               IconButton(
                 icon: Icon(
                   Icons.shuffle,
-                  color: isShuffling ? Color(0xFFFFD700) : Colors.grey,
+                  color: isShuffling ? cs.primary : Colors.grey,
                 ),
                 onPressed: _toggleShuffle,
               ),
@@ -1726,7 +1746,7 @@ class _PlayerPageState extends State<PlayerPage>
               IconButton(
                 icon: Icon(
                   Icons.repeat,
-                  color: isRepeating ? Color(0xFFFFD700) : Colors.grey,
+                  color: isRepeating ? cs.primary : Colors.grey,
                 ),
 
 
