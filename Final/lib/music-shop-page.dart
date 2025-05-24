@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'theme.dart';
 import 'userProfile.dart';
-import 'paymentPage.dart'; // اضافه شد
+import 'paymentPage.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
+import 'package:flutter/services.dart';
 
 class ShopSong {
   final String id;
@@ -87,6 +90,17 @@ class _MusicShopPageState extends State<MusicShopPage> {
         downloads: 2500,
         isFree: true,
       ),
+      // اضافه کردن آهنگ ایرانی asset
+      ShopSong(
+        id: 'shadmehr_bi_ehsas',
+        title: 'Bi Ehsas',
+        artist: 'Shadmehr Aghili',
+        imagePath: 'assets/images/shadmehr-aghili-bi-ehsas.jpg',
+        rating: 4.7,
+        price: 0.00,
+        downloads: 3000,
+        isFree: true,
+      ),
     ],
     'Foreigner': [
       ShopSong(
@@ -98,6 +112,17 @@ class _MusicShopPageState extends State<MusicShopPage> {
         rating: 4.8,
         price: 2.99,
         downloads: 5000,
+        isFree: false,
+      ),
+      // اضافه کردن آهنگ خارجی asset
+      ShopSong(
+        id: 'nf_clouds',
+        title: 'CLOUDS',
+        artist: 'NF',
+        imagePath: 'assets/images/Nf clouds.webp',
+        rating: 4.9,
+        price: 4.99,
+        downloads: 8000,
         isFree: false,
       ),
     ],
@@ -235,6 +260,7 @@ class _MusicShopPageState extends State<MusicShopPage> {
               padding: const EdgeInsets.symmetric(vertical: 4),
               itemBuilder: (ctx, i) {
                 final song = currentSongs[i];
+                final isAssetSong = song.id == 'shadmehr_bi_ehsas' || song.id == 'nf_clouds';
                 return Card(
                   margin: const EdgeInsets.symmetric(
                     horizontal: 8,
@@ -244,16 +270,27 @@ class _MusicShopPageState extends State<MusicShopPage> {
                   child: ListTile(
                     leading: ClipRRect(
                       borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        song.imagePath,
-                        width: 50,
-                        height: 50,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          color: cs.onSurface.withOpacity(0.1),
-                          child: Icon(Icons.music_note, color: cs.primary),
-                        ),
-                      ),
+                      child: song.imagePath.startsWith('assets/')
+                          ? Image.asset(
+                              song.imagePath,
+                              width: 50,
+                              height: 50,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                color: cs.onSurface.withOpacity(0.1),
+                                child: Icon(Icons.music_note, color: cs.primary),
+                              ),
+                            )
+                          : Image.network(
+                              song.imagePath,
+                              width: 50,
+                              height: 50,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                color: cs.onSurface.withOpacity(0.1),
+                                child: Icon(Icons.music_note, color: cs.primary),
+                              ),
+                            ),
                     ),
                     title: Text(
                       song.title,
@@ -302,36 +339,43 @@ class _MusicShopPageState extends State<MusicShopPage> {
                     ),
                     trailing: song.isFree
                         ? Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.green,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Text(
-                        'FREE',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    )
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.green,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: const Text(
+                              'FREE',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          )
                         : Text(
-                      '\$${song.price.toStringAsFixed(2)}',
-                      style: tt.bodyMedium?.copyWith(
-                        color: cs.primary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => SongDetailPage(
-                          song: song,
-                          hasSubscription: false,
+                            '\$${song.price.toStringAsFixed(2)}',
+                            style: tt.bodyMedium?.copyWith(
+                              color: cs.primary,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                    onTap: () async {
+                      // همیشه ابتدا وارد صفحه کامنت (SongDetailPage) شو
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SongDetailPage(
+                            song: song,
+                            hasSubscription: false,
+                          ),
                         ),
-                      ),
-                    ),
+                      );
+                      
+                      if (result is ShopSong) {
+                        Navigator.pop(context, result);
+                      }
+                    },
                   ),
                 );
               },
@@ -425,38 +469,82 @@ class _SongDetailPageState extends State<SongDetailPage> {
     });
   }
 
-  void _startDownload() async {
+  Future<String?> _copyAssetToDownloads(String assetPath, String fileName) async {
+    try {
+      final byteData = await rootBundle.load(assetPath);
+      final appDocDir = await getApplicationDocumentsDirectory();
+      final downloadDir = Directory('${appDocDir.path}/DownloadedMusic');
+      if (!await downloadDir.exists()) {
+        await downloadDir.create(recursive: true);
+      }
+      final audioFile = File('${downloadDir.path}/$fileName');
+      await audioFile.writeAsBytes(byteData.buffer.asUint8List());
+      return audioFile.path;
+    } catch (e) {
+      print('Error copying files: $e');
+      return null;
+    }
+  }
+
+  Future<void> _startDownload() async {
     setState(() {
       isDownloading = true;
       downloadProgress = 0;
     });
 
-    for (int i = 0; i <= 100; i++) {
-      await Future.delayed(const Duration(milliseconds: 50));
-      setState(() {
-        downloadProgress = i / 100;
-      });
+    String? assetPath;
+    String? fileName;
+
+    if (widget.song.id == 'shadmehr_bi_ehsas') {
+      assetPath = 'assets/audio/Shadmehr Aghili - Bi Ehsas.mp3';
+      fileName = 'Shadmehr Aghili - Bi Ehsas.mp3';
+    } else if (widget.song.id == 'nf_clouds') {
+      assetPath = 'assets/audio/1. NF - CLOUDS (320).mp3';
+      fileName = 'NF - CLOUDS.mp3';
     }
 
-    setState(() {
-      isDownloading = false;
-    });
+    if (assetPath != null && fileName != null) {
+      // شبیه‌سازی پیشرفت دانلود
+      for (int i = 0; i <= 100; i += 2) {
+        if (!mounted) return;
+        setState(() {
+          downloadProgress = i / 100;
+        });
+        await Future.delayed(const Duration(milliseconds: 15));
+      }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Download completed!'),
-        backgroundColor: Colors.green,
-      ),
-    );
+      final savedPath = await _copyAssetToDownloads(assetPath, fileName);
+
+      setState(() {
+        isDownloading = false;
+      });
+
+      if (savedPath != null) {
+        // آهنگ asset را به HomePage اضافه کن
+        Navigator.pop(context, {
+          'id': widget.song.id,
+          'title': widget.song.title,
+          'artist': widget.song.artist,
+          'image': widget.song.imagePath,
+          'filePath': savedPath,
+          'lyrics': '',
+        });
+      }
+    } else {
+      setState(() {
+        isDownloading = false;
+      });
+      // برای آهنگ‌های غیر asset
+      Navigator.pop(context, widget.song);
+    }
   }
 
-  // اضافه کردن متد برای خرید و انتقال به صفحه پرداخت
   void _purchaseSong() async {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => PaymentPage(
-          amount: widget.song.price, // مبلغ آهنگ را پاس بده
+          amount: widget.song.price,
         ),
       ),
     );
@@ -464,16 +552,8 @@ class _SongDetailPageState extends State<SongDetailPage> {
       setState(() {
         isPurchased = true;
       });
-      // آهنگ را به HomePage اضافه کن
-      Navigator.pop(context, widget.song);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Purchased ${widget.song.title} successfully!',
-          ),
-          backgroundColor: Colors.green,
-        ),
-      );
+      // بعد از خرید، دانلود و کپی آهنگ asset
+      _startDownload();
     }
   }
 
@@ -501,22 +581,39 @@ class _SongDetailPageState extends State<SongDetailPage> {
             Center(
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Image.network(
-                  widget.song.imagePath,
-                  width: 200,
-                  height: 200,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    width: 200,
-                    height: 200,
-                    color: cs.onSurface.withOpacity(0.1),
-                    child: Icon(
-                      Icons.music_note,
-                      size: 60,
-                      color: cs.primary,
-                    ),
-                  ),
-                ),
+                child: widget.song.imagePath.startsWith('assets/')
+                    ? Image.asset(
+                        widget.song.imagePath,
+                        width: 200,
+                        height: 200,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          width: 200,
+                          height: 200,
+                          color: cs.onSurface.withOpacity(0.1),
+                          child: Icon(
+                            Icons.music_note,
+                            size: 60,
+                            color: cs.primary,
+                          ),
+                        ),
+                      )
+                    : Image.network(
+                        widget.song.imagePath,
+                        width: 200,
+                        height: 200,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          width: 200,
+                          height: 200,
+                          color: cs.onSurface.withOpacity(0.1),
+                          child: Icon(
+                            Icons.music_note,
+                            size: 60,
+                            color: cs.primary,
+                          ),
+                        ),
+                      ),
               ),
             ),
             const SizedBox(height: 20),

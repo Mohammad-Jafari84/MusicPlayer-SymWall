@@ -22,6 +22,7 @@ dependencies:
   path_provider: ^2.0.15
   just_audio: ^0.9.34
   audioplayers: ^5.2.1
+  http: ^1.1.0
 
   # پکیج‌های جانبی
   permission_handler: ^12.0.0+1
@@ -71,3 +72,5 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/audio/
+
