@@ -21,6 +21,7 @@ dependencies:
   audio_service: ^0.18.5
   path_provider: ^2.0.15
   just_audio: ^0.9.34
+  audioplayers: ^5.2.1
 
   # پکیج‌های جانبی
   permission_handler: ^12.0.0+1
@@ -32,10 +33,12 @@ dependencies:
   animated_button: ^0.2.0
   google_sign_in: ^6.2.1
   flutter_animated_button: ^2.0.4
+  device_info_plus: ^9.1.2
 
   # Add these new packages
   wave: ^0.2.2
   on_audio_query: ^2.9.0
+  azlistview: ^2.0.0
 
   # Remove these (not needed for fast local audio/artwork):
   # flutter_media_metadata: ^1.0.0+1
@@ -43,6 +46,20 @@ dependencies:
   # flutter_audio_waveforms: ^1.2.1+8
   # id3: ^1.0.2
   # metadata_god: ^0.5.2+1
+
+  # For Android permissions, add to android/app/src/main/AndroidManifest.xml:
+  # <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+  # <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+  # <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
+  # <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>
+
+  # For iOS permissions, add to ios/Runner/Info.plist:
+  # <key>NSAppleMusicUsageDescription</key>
+  # <string>This app needs access to your music library.</string>
+  # <key>NSMicrophoneUsageDescription</key>
+  # <string>This app needs access to your microphone.</string>
+  # <key>NSPhotoLibraryUsageDescription</key>
+  # <string>This app needs access to your photo library.</string>
 
 dev_dependencies:
   flutter_test:
@@ -54,4 +71,3 @@ flutter:
 
   assets:
     - assets/images/
-    - assets/audio/

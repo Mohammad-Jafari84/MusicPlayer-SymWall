@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'theme.dart';
 import 'userProfile.dart';
+import 'paymentPage.dart'; // اضافه شد
 
 class ShopSong {
   final String id;
@@ -118,13 +119,14 @@ class _MusicShopPageState extends State<MusicShopPage> {
         id: '5',
         title: 'After You',
         artist: 'Mohsen Chavoshi',
-        imagePath:
-        'https://rozmusic.com/wp-content/uploads/2025/05/Mohsen-Chavoshi-Bad-Az-To.jpg',
+        imagePath: 'https://rozmusic.com/wp-content/uploads/2025/05/Mohsen-Chavoshi-Bad-Az-To.jpg',
         rating: 4.7,
         price: 1.49,
         downloads: 2000,
         isFree: false,
+
       ),
+
     ],
   };
 
@@ -441,47 +443,43 @@ class _SongDetailPageState extends State<SongDetailPage> {
       isDownloading = false;
     });
 
+    // نمایش پیام موفقیت
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Download completed!'),
         backgroundColor: Colors.green,
       ),
     );
+
+    // برگرداندن آهنگ به صفحه قبلی (HomePage)
+    Navigator.pop(context, widget.song);
   }
 
-  void _purchaseSong() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Purchase Song'),
-        content: Text(
-          'Do you want to purchase "${widget.song.title}" for \$${widget.song.price}?',
+  // اضافه کردن متد برای خرید و انتقال به صفحه پرداخت
+  void _purchaseSong() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PaymentPage(
+          amount: widget.song.price, // مبلغ آهنگ را پاس بده
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              setState(() {
-                isPurchased = true;
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Purchased ${widget.song.title} successfully!',
-                  ),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            },
-            child: const Text('Purchase'),
-          ),
-        ],
       ),
     );
+    if (result == true) {
+      setState(() {
+        isPurchased = true;
+      });
+      // آهنگ را به HomePage اضافه کن
+      Navigator.pop(context, widget.song);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Purchased ${widget.song.title} successfully!',
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
   }
 
   @override

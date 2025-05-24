@@ -1,4 +1,3 @@
-// main.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'theme_provider.dart';
@@ -23,11 +22,27 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: themeProvider.themeMode,
+      themeMode: ThemeMode.system, // برای سازگاری، اما تم را دستی مدیریت می‌کنیم
       home: SignUpScreen(),
       routes: {
         '/profile': (_) => ProfilePage(),
-        '/payment': (_) => PaymentPage(),
+        '/payment': (_) => PaymentPage(amount: 100.0),
+      },
+      builder: (context, child) {
+        // انتخاب تم بر اساس ThemeProvider
+        final theme = themeProvider.theme;
+        ThemeData selectedTheme;
+        if (theme == 'light') {
+          selectedTheme = AppTheme.lightTheme;
+        } else if (theme == 'green') {
+          selectedTheme = AppTheme.greenTheme;
+        } else {
+          selectedTheme = AppTheme.darkTheme;
+        }
+        return Theme(
+          data: selectedTheme,
+          child: child!,
+        );
       },
     );
   }

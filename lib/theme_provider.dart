@@ -1,15 +1,30 @@
-// theme_provider.dart
 import 'package:flutter/material.dart';
 
 class ThemeProvider extends ChangeNotifier {
-  ThemeMode _themeMode = ThemeMode.dark;
+  String _theme = 'dark'; // حالت پیش‌فرض: تیره
 
-  ThemeMode get themeMode => _themeMode;
+  String get theme => _theme;
 
-  bool get isDarkMode => _themeMode == ThemeMode.dark;
+  bool get isDarkMode => _theme == 'dark';
+  bool get isLightMode => _theme == 'light';
+  bool get isGreenMode => _theme == 'green';
 
-  void toggleTheme(bool isOn) {
-    _themeMode = isOn ? ThemeMode.dark : ThemeMode.light;
+  void setTheme(String theme) {
+    if (['light', 'dark', 'green'].contains(theme)) {
+      _theme = theme;
+      notifyListeners();
+    }
+  }
+
+  void cycleTheme() {
+    // چرخش بین تم‌ها: dark -> light -> green -> dark
+    if (_theme == 'dark') {
+      _theme = 'light';
+    } else if (_theme == 'light') {
+      _theme = 'green';
+    } else {
+      _theme = 'dark';
+    }
     notifyListeners();
   }
 }
