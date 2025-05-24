@@ -1,0 +1,10 @@
+{
+  // ...existing code...
+  "permissions": [
+    "storage",
+    "fileSystem",
+    "music",
+    "pictures"
+  ]
+  // ...existing code...
+}
