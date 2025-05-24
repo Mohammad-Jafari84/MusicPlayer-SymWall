@@ -272,25 +272,25 @@ class _MusicShopPageState extends State<MusicShopPage> {
                       borderRadius: BorderRadius.circular(8),
                       child: song.imagePath.startsWith('assets/')
                           ? Image.asset(
-                              song.imagePath,
-                              width: 50,
-                              height: 50,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Container(
-                                color: cs.onSurface.withOpacity(0.1),
-                                child: Icon(Icons.music_note, color: cs.primary),
-                              ),
-                            )
+                        song.imagePath,
+                        width: 50,
+                        height: 50,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          color: cs.onSurface.withOpacity(0.1),
+                          child: Icon(Icons.music_note, color: cs.primary),
+                        ),
+                      )
                           : Image.network(
-                              song.imagePath,
-                              width: 50,
-                              height: 50,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Container(
-                                color: cs.onSurface.withOpacity(0.1),
-                                child: Icon(Icons.music_note, color: cs.primary),
-                              ),
-                            ),
+                        song.imagePath,
+                        width: 50,
+                        height: 50,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          color: cs.onSurface.withOpacity(0.1),
+                          child: Icon(Icons.music_note, color: cs.primary),
+                        ),
+                      ),
                     ),
                     title: Text(
                       song.title,
@@ -339,27 +339,27 @@ class _MusicShopPageState extends State<MusicShopPage> {
                     ),
                     trailing: song.isFree
                         ? Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.green,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: const Text(
-                              'FREE',
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          )
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Text(
+                        'FREE',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    )
                         : Text(
-                            '\$${song.price.toStringAsFixed(2)}',
-                            style: tt.bodyMedium?.copyWith(
-                              color: cs.primary,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                      '\$${song.price.toStringAsFixed(2)}',
+                      style: tt.bodyMedium?.copyWith(
+                        color: cs.primary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     onTap: () async {
                       // همیشه ابتدا وارد صفحه کامنت (SongDetailPage) شو
                       final result = await Navigator.push(
@@ -371,8 +371,10 @@ class _MusicShopPageState extends State<MusicShopPage> {
                           ),
                         ),
                       );
-                      
-                      if (result is ShopSong) {
+                      // اگر آهنگ asset دانلود شد، Map برمی‌گردد
+                      if (result is Map && result['filePath'] != null) {
+                        Navigator.pop(context, result);
+                      } else if (result is ShopSong) {
                         Navigator.pop(context, result);
                       }
                     },
@@ -596,37 +598,37 @@ class _SongDetailPageState extends State<SongDetailPage> {
                 borderRadius: BorderRadius.circular(12),
                 child: widget.song.imagePath.startsWith('assets/')
                     ? Image.asset(
-                        widget.song.imagePath,
-                        width: 200,
-                        height: 200,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          width: 200,
-                          height: 200,
-                          color: cs.onSurface.withOpacity(0.1),
-                          child: Icon(
-                            Icons.music_note,
-                            size: 60,
-                            color: cs.primary,
-                          ),
-                        ),
-                      )
+                  widget.song.imagePath,
+                  width: 200,
+                  height: 200,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    width: 200,
+                    height: 200,
+                    color: cs.onSurface.withOpacity(0.1),
+                    child: Icon(
+                      Icons.music_note,
+                      size: 60,
+                      color: cs.primary,
+                    ),
+                  ),
+                )
                     : Image.network(
-                        widget.song.imagePath,
-                        width: 200,
-                        height: 200,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          width: 200,
-                          height: 200,
-                          color: cs.onSurface.withOpacity(0.1),
-                          child: Icon(
-                            Icons.music_note,
-                            size: 60,
-                            color: cs.primary,
-                          ),
-                        ),
-                      ),
+                  widget.song.imagePath,
+                  width: 200,
+                  height: 200,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    width: 200,
+                    height: 200,
+                    color: cs.onSurface.withOpacity(0.1),
+                    child: Icon(
+                      Icons.music_note,
+                      size: 60,
+                      color: cs.primary,
+                    ),
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 20),
@@ -867,4 +869,3 @@ class _SongDetailPageState extends State<SongDetailPage> {
     );
   }
 }
-
