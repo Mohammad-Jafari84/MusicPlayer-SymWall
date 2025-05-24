@@ -536,15 +536,15 @@ class _SongDetailPageState extends State<SongDetailPage> {
             SnackBar(content: Text('Download completed!')),
           );
         }
-        // آهنگ را به صورت Map به صفحه قبل برگردان
-        Navigator.pop(context, {
-          'id': widget.song.id,
-          'title': widget.song.title,
-          'artist': widget.song.artist,
-          'image': widget.song.imagePath,
-          'filePath': savedPath,
-          'lyrics': '',
-        });
+
+        // Navigator.pop(context, {
+        //   'id': widget.song.id,
+        //   'title': widget.song.title,
+        //   'artist': widget.song.artist,
+        //   'image': widget.song.imagePath,
+        //   'filePath': savedPath,
+        //   'lyrics': '',
+        // });
       }
     } else {
       setState(() {

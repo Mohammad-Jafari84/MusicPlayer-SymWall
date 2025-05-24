@@ -17,8 +17,7 @@ import 'package:azlistview/azlistview.dart';
 import 'music-shop-page.dart';
 import 'theme.dart';
 import 'userProfile.dart';
-// حذف provider و SongsProvider
-// import 'package:provider/provider.dart';
+
 
 void main() {
   runApp(const MyApp());
@@ -329,6 +328,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       );
       if (result != null && result.files.isNotEmpty) {
         List<Song> pickedSongs = [];
+        String cleanPath(String path) {
+          if (path.startsWith('file://')) {
+            return path.replaceFirst('file://', '');
+          }
+          return path;
+        }
         for (var file in result.files) {
           if (file.path != null && await File(file.path!).exists()) {
             pickedSongs.add(Song(
@@ -1011,10 +1016,19 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         ),
         actions: [
           IconButton(
+            icon: Icon(Icons.refresh, color: cs.onPrimary), // <-- Add this
+            tooltip: 'Reload songs',
+            onPressed: () async {
+              await _loadLocalSongsAndUpdateCache();
+              setState(() {});
+            },
+          ),
+          IconButton(
             icon: Icon(
               _songViewType == SongViewType.list ? Icons.grid_view : Icons.list,
               color: cs.onPrimary,
             ),
+
             tooltip: 'Toggle view',
             onPressed: () {
               setState(() {
@@ -1131,7 +1145,15 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                               },
                             ),
                           ),
-                        Expanded(child: _buildSongList(songsToShow)),
+                        Expanded(
+                          child: RefreshIndicator(
+                            onRefresh: () async {
+                              await _loadLocalSongsAndUpdateCache();
+                              setState(() {});
+                            },
+                            child: _buildSongList(songsToShow),
+                          ),
+                        ),
                       ],
                     );
                   },
