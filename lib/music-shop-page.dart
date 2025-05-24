@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'theme.dart';
 import 'userProfile.dart';
-import 'paymentPage.dart'; // اضافه شد
+import 'paymentPage.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
+import 'package:flutter/services.dart';
 
 class ShopSong {
   final String id;
@@ -87,6 +90,17 @@ class _MusicShopPageState extends State<MusicShopPage> {
         downloads: 2500,
         isFree: true,
       ),
+      // اضافه کردن آهنگ ایرانی asset
+      ShopSong(
+        id: 'shadmehr_bi_ehsas',
+        title: 'Bi Ehsas',
+        artist: 'Shadmehr Aghili',
+        imagePath: 'assets/images/shadmehr-aghili-bi-ehsas.jpg',
+        rating: 4.7,
+        price: 0.00,
+        downloads: 3000,
+        isFree: true,
+      ),
     ],
     'Foreigner': [
       ShopSong(
@@ -98,6 +112,17 @@ class _MusicShopPageState extends State<MusicShopPage> {
         rating: 4.8,
         price: 2.99,
         downloads: 5000,
+        isFree: false,
+      ),
+      // اضافه کردن آهنگ خارجی asset
+      ShopSong(
+        id: 'nf_clouds',
+        title: 'CLOUDS',
+        artist: 'NF',
+        imagePath: 'assets/images/Nf clouds.webp',
+        rating: 4.9,
+        price: 4.99,
+        downloads: 8000,
         isFree: false,
       ),
     ],
@@ -119,14 +144,13 @@ class _MusicShopPageState extends State<MusicShopPage> {
         id: '5',
         title: 'After You',
         artist: 'Mohsen Chavoshi',
-        imagePath: 'https://rozmusic.com/wp-content/uploads/2025/05/Mohsen-Chavoshi-Bad-Az-To.jpg',
+        imagePath:
+        'https://rozmusic.com/wp-content/uploads/2025/05/Mohsen-Chavoshi-Bad-Az-To.jpg',
         rating: 4.7,
         price: 1.49,
         downloads: 2000,
         isFree: false,
-
       ),
-
     ],
   };
 
@@ -236,6 +260,7 @@ class _MusicShopPageState extends State<MusicShopPage> {
               padding: const EdgeInsets.symmetric(vertical: 4),
               itemBuilder: (ctx, i) {
                 final song = currentSongs[i];
+                final isAssetSong = song.id == 'shadmehr_bi_ehsas' || song.id == 'nf_clouds';
                 return Card(
                   margin: const EdgeInsets.symmetric(
                     horizontal: 8,
@@ -245,7 +270,18 @@ class _MusicShopPageState extends State<MusicShopPage> {
                   child: ListTile(
                     leading: ClipRRect(
                       borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
+                      child: song.imagePath.startsWith('assets/')
+                          ? Image.asset(
+                        song.imagePath,
+                        width: 50,
+                        height: 50,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          color: cs.onSurface.withOpacity(0.1),
+                          child: Icon(Icons.music_note, color: cs.primary),
+                        ),
+                      )
+                          : Image.network(
                         song.imagePath,
                         width: 50,
                         height: 50,
@@ -324,15 +360,22 @@ class _MusicShopPageState extends State<MusicShopPage> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => SongDetailPage(
-                          song: song,
-                          hasSubscription: false,
+                    onTap: () async {
+                      // همیشه ابتدا وارد صفحه کامنت (SongDetailPage) شو
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SongDetailPage(
+                            song: song,
+                            hasSubscription: false,
+                          ),
                         ),
-                      ),
-                    ),
+                      );
+
+                      if (result is ShopSong) {
+                        Navigator.pop(context, result);
+                      }
+                    },
                   ),
                 );
               },
@@ -426,42 +469,95 @@ class _SongDetailPageState extends State<SongDetailPage> {
     });
   }
 
-  void _startDownload() async {
+  Future<String?> _copyAssetToDownloads(String assetPath, String fileName) async {
+    try {
+      final byteData = await rootBundle.load(assetPath);
+      Directory? musicDir;
+      if (Platform.isAndroid) {
+        // فولدر Music عمومی
+        musicDir = Directory('/storage/emulated/0/Music');
+        if (!await musicDir.exists()) {
+          await musicDir.create(recursive: true);
+        }
+      } else {
+        // برای iOS یا fallback
+        final appDocDir = await getApplicationDocumentsDirectory();
+        musicDir = Directory('${appDocDir.path}/DownloadedMusic');
+        if (!await musicDir.exists()) {
+          await musicDir.create(recursive: true);
+        }
+      }
+      final audioFile = File('${musicDir.path}/$fileName');
+      await audioFile.writeAsBytes(byteData.buffer.asUint8List());
+      return audioFile.path;
+    } catch (e) {
+      print('Error copying files: $e');
+      return null;
+    }
+  }
+
+  Future<void> _startDownload() async {
     setState(() {
       isDownloading = true;
       downloadProgress = 0;
     });
 
-    for (int i = 0; i <= 100; i++) {
-      await Future.delayed(const Duration(milliseconds: 50));
-      setState(() {
-        downloadProgress = i / 100;
-      });
+    String? assetPath;
+    String? fileName;
+
+    if (widget.song.id == 'shadmehr_bi_ehsas') {
+      assetPath = 'assets/audio/Shadmehr Aghili - Bi Ehsas.mp3';
+      fileName = 'Shadmehr Aghili - Bi Ehsas.mp3';
+    } else if (widget.song.id == 'nf_clouds') {
+      assetPath = 'assets/audio/1. NF - CLOUDS (320).mp3';
+      fileName = 'NF - CLOUDS.mp3';
     }
 
-    setState(() {
-      isDownloading = false;
-    });
+    if (assetPath != null && fileName != null) {
+      for (int i = 0; i <= 100; i += 2) {
+        if (!mounted) return;
+        setState(() {
+          downloadProgress = i / 100;
+        });
+        await Future.delayed(const Duration(milliseconds: 10));
+      }
 
-    // نمایش پیام موفقیت
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Download completed!'),
-        backgroundColor: Colors.green,
-      ),
-    );
+      final savedPath = await _copyAssetToDownloads(assetPath, fileName);
 
-    // برگرداندن آهنگ به صفحه قبلی (HomePage)
-    Navigator.pop(context, widget.song);
+      setState(() {
+        isDownloading = false;
+      });
+
+      if (savedPath != null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Download completed!')),
+          );
+        }
+        // آهنگ را به صورت Map به صفحه قبل برگردان
+        Navigator.pop(context, {
+          'id': widget.song.id,
+          'title': widget.song.title,
+          'artist': widget.song.artist,
+          'image': widget.song.imagePath,
+          'filePath': savedPath,
+          'lyrics': '',
+        });
+      }
+    } else {
+      setState(() {
+        isDownloading = false;
+      });
+      Navigator.pop(context, widget.song);
+    }
   }
 
-  // اضافه کردن متد برای خرید و انتقال به صفحه پرداخت
   void _purchaseSong() async {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => PaymentPage(
-          amount: widget.song.price, // مبلغ آهنگ را پاس بده
+          amount: widget.song.price,
         ),
       ),
     );
@@ -469,16 +565,8 @@ class _SongDetailPageState extends State<SongDetailPage> {
       setState(() {
         isPurchased = true;
       });
-      // آهنگ را به HomePage اضافه کن
-      Navigator.pop(context, widget.song);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Purchased ${widget.song.title} successfully!',
-          ),
-          backgroundColor: Colors.green,
-        ),
-      );
+      // بعد از خرید، دانلود و کپی آهنگ asset
+      _startDownload();
     }
   }
 
@@ -506,7 +594,24 @@ class _SongDetailPageState extends State<SongDetailPage> {
             Center(
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Image.network(
+                child: widget.song.imagePath.startsWith('assets/')
+                    ? Image.asset(
+                  widget.song.imagePath,
+                  width: 200,
+                  height: 200,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    width: 200,
+                    height: 200,
+                    color: cs.onSurface.withOpacity(0.1),
+                    child: Icon(
+                      Icons.music_note,
+                      size: 60,
+                      color: cs.primary,
+                    ),
+                  ),
+                )
+                    : Image.network(
                   widget.song.imagePath,
                   width: 200,
                   height: 200,

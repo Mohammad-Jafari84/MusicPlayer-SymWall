@@ -17,6 +17,12 @@ import 'package:azlistview/azlistview.dart';
 import 'music-shop-page.dart';
 import 'theme.dart';
 import 'userProfile.dart';
+// حذف provider و SongsProvider
+// import 'package:provider/provider.dart';
+
+void main() {
+  runApp(const MyApp());
+}
 
 enum SongViewType { list, grid }
 
@@ -92,6 +98,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   int _miniPlayerCurrentIndex = 0;
 
   final ScrollController _azScrollController = ScrollController();
+
+  List<Song> downloadedSongs = [];
 
   @override
   void initState() {
@@ -1041,6 +1049,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.favorite), label: 'Liked'),
           BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Shop'),
+          // BottomNavigationBarItem(icon: Icon(Icons.download), label: 'Downloads'), // حذف شد
         ],
       ),
       body: SafeArea(
@@ -1066,15 +1075,53 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                         child: Center(child: CircularProgressIndicator()),
                       );
                     }
-                    localSongs = snapshot.data ?? [];
-                    final songsToShow = filterSongs(localSongs);
+                    // فقط اگر localSongs خالی بود مقداردهی کن
+                    if (localSongs.isEmpty && snapshot.data != null) {
+                      localSongs = snapshot.data!;
+                    }
+                    // ترکیب آهنگ‌های لوکال و دانلود شده (بدون تکرار)
+                    final allSongsSet = <String, Song>{};
+                    for (var s in localSongs) {
+                      allSongsSet[s.id] = s;
+                    }
+                    for (var s in downloadedSongs) {
+                      allSongsSet[s.id] = s;
+                    }
+                    final songsToShow = filterSongs(allSongsSet.values.toList());
                     if (songsToShow.isEmpty) {
                       return const Padding(
                         padding: EdgeInsets.all(32),
                         child: Center(child: Text('No music found.')),
                       );
                     }
-                    return _buildSongList(songsToShow);
+                    return Column(
+                      children: [
+                        if (downloadedSongs.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8, left: 16, right: 16),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                'Downloaded from Shop',
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
+                            ),
+                          ),
+                        if (downloadedSongs.isNotEmpty)
+                          SizedBox(
+                            height: 120,
+                            child: ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: downloadedSongs.length,
+                              itemBuilder: (context, index) {
+                                final song = downloadedSongs[index];
+                                return _buildSongGridTile(song, downloadedSongs);
+                              },
+                            ),
+                          ),
+                        Expanded(child: _buildSongList(songsToShow)),
+                      ],
+                    );
                   },
                 ),
                 likedSongs.isEmpty
@@ -1130,6 +1177,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 Builder(
                   builder: (context) => MusicShopPage(
                     // اگر MusicShopPage پارامتر ندارد، همین را نگه دار
+                    // افزودن onResult برای افزودن آهنگ دانلود شده
+                    key: UniqueKey(),
                   ),
                 ),
               ],
@@ -1147,30 +1196,47 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     );
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // اگر از push برای رفتن به MusicShopPage استفاده می‌کنی:
-    Future.microtask(() async {
-      if (currentIndex == 2) {
-        final result = await Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => MusicShopPage()),
-        );
-        if (result is ShopSong) {
-          setState(() {
-            localSongs.add(Song(
-              id: result.id,
-              title: result.title,
-              artist: result.artist,
-              image: null,
-              filePath: '', // اگر فایل دانلود شد، مسیر را قرار بده
-              lyrics: '',
-            ));
-          });
-        }
+  // افزودن متد برای افزودن آهنگ دانلود شده از موزیک شاپ
+  Future<void> addDownloadedSongFromShop(Map<String, dynamic> songMap) async {
+    final song = Song(
+      id: songMap['id'],
+      title: songMap['title'],
+      artist: songMap['artist'],
+      image: songMap['image'],
+      filePath: songMap['filePath'],
+      lyrics: songMap['lyrics'] ?? '',
+    );
+    setState(() {
+      if (!downloadedSongs.any((s) => s.id == song.id)) {
+        downloadedSongs.add(song);
       }
+      if (!localSongs.any((s) => s.id == song.id)) {
+        localSongs.add(song);
+      }
+      // بازسازی Future برای به‌روزرسانی UI
+      _localSongsFuture = Future.value(localSongs);
     });
+
+    // به‌روزرسانی کش
+    final prefs = await SharedPreferences.getInstance();
+    final toCache = localSongs
+        .map((s) => {
+      'id': s.id,
+      'title': s.title,
+      'artist': s.artist,
+      'filePath': s.filePath,
+    })
+        .toList();
+    await prefs.setString('cached_local_songs', jsonEncode(toCache));
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${song.title} به کتابخانه شما اضافه شد!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
   }
 }
 
