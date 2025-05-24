@@ -1164,12 +1164,8 @@ class _PlayerPageState extends State<PlayerPage>
       }
     });
 
-    // Only play if not resuming
-    if (!(widget.resumeInsteadOfRestart == true && _player.playing)) {
-      _playSong(_playlist[_currentIndex]);
-    } else if (_player.playing) {
-      _discController.repeat();
-    }
+    // Always play the correct song on open
+    _playSong(_playlist[_currentIndex]);
   }
 
   @override
@@ -1195,15 +1191,18 @@ class _PlayerPageState extends State<PlayerPage>
     );
   }
 
+  // --- FIX: Always update _currentIndex and _cachedArtwork before playing the song ---
   Future<void> _playSong(Song song) async {
     try {
+      final newIndex = _playlist.indexWhere((s) => s.id == song.id);
+      if (newIndex == -1) return;
+      setState(() {
+        _currentIndex = newIndex;
+        _cachedArtwork = _buildArtwork(song);
+      });
       if (_player.playing) await _player.stop();
-      // FIX: Only set file path if filePath is not empty and file exists
       if (song.filePath.isNotEmpty && await File(song.filePath).exists()) {
         await _player.setFilePath(song.filePath);
-        setState(() {
-          _cachedArtwork = _buildArtwork(song);
-        });
         await _player.play();
         setState(() {
           _isPlaying = true;
@@ -1223,19 +1222,17 @@ class _PlayerPageState extends State<PlayerPage>
 
   void _playNextSong() {
     if (_playlist.isEmpty) return;
-    setState(() {
-      _currentIndex = (_currentIndex + 1) % _playlist.length;
-    });
-    _playSong(_playlist[_currentIndex]);
+    final nextIndex = (_currentIndex + 1) % _playlist.length;
+    final nextSong = _playlist[nextIndex];
+    _playSong(nextSong);
   }
 
   void _playPreviousSong() {
     if (_playlist.isEmpty) return;
-    setState(() {
-      _currentIndex =
-          (_currentIndex - 1) >= 0 ? _currentIndex - 1 : _playlist.length - 1;
-    });
-    _playSong(_playlist[_currentIndex]);
+    final prevIndex =
+        (_currentIndex - 1) >= 0 ? _currentIndex - 1 : _playlist.length - 1;
+    final prevSong = _playlist[prevIndex];
+    _playSong(prevSong);
   }
 
   void _toggleShuffle() {
@@ -1526,6 +1523,7 @@ class _PlayerPageState extends State<PlayerPage>
     );
   }
 }
+
 
 
 
