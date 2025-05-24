@@ -13,6 +13,7 @@ import 'dart:math' as math;
 import 'package:audio_service/audio_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:azlistview/azlistview.dart';
 import 'music-shop-page.dart';
 import 'theme.dart';
 import 'userProfile.dart';
@@ -33,13 +34,14 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class Song {
+class Song extends ISuspensionBean {
   final String id;
   final String title;
   final String artist;
   final String? image;
   final String filePath;
   final String lyrics;
+  String tag; // برای AZListView
 
   Song({
     required this.id,
@@ -48,7 +50,12 @@ class Song {
     this.image,
     required this.filePath,
     required this.lyrics,
+    this.tag = '',
   });
+
+
+  @override
+  String getSuspensionTag() => tag;
 }
 
 class GlobalAudioPlayer {
@@ -83,6 +90,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   bool _miniPlayerShuffling = false;
   List<Song> _miniPlayerPlaylist = [];
   int _miniPlayerCurrentIndex = 0;
+
+  final ScrollController _azScrollController = ScrollController();
 
   @override
   void initState() {
@@ -446,73 +455,231 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     }
   }
 
+  List<Song> _prepareAZSongs(List<Song> songs) {
+    for (var song in songs) {
+      String tag = '';
+      if (song.title.isNotEmpty) {
+        tag = song.title[0].toUpperCase();
+        if (!RegExp(r'[A-Z]').hasMatch(tag)) tag = '#';
+      } else {
+        tag = '#';
+      }
+      song.tag = tag;
+    }
+    SuspensionUtil.sortListBySuspensionTag(songs);
+    SuspensionUtil.setShowSuspensionStatus(songs);
+    return songs;
+  }
+
+  Widget _buildAZSongList(List<Song> songsToShow) {
+    final cs = Theme.of(context).colorScheme;
+    final azSongs = _prepareAZSongs(List<Song>.from(songsToShow));
+    return AzListView(
+      data: azSongs,
+      itemCount: azSongs.length,
+      itemBuilder: (context, index) {
+        final song = azSongs[index];
+        return _buildSongTile(song, azSongs);
+      },
+      indexBarData: SuspensionUtil.getTagIndexList(azSongs).map((e) => e.toString()).toList(),
+      indexBarOptions: IndexBarOptions(
+        needRebuild: true,
+        selectTextStyle: TextStyle(
+          color: cs.primary,
+          fontWeight: FontWeight.bold,
+          fontSize: 18,
+          shadows: [
+            Shadow(
+              color: cs.primary.withOpacity(0.4),
+              blurRadius: 8,
+              offset: Offset(2, 2),
+            ),
+          ],
+        ),
+        selectItemDecoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: cs.primary.withOpacity(0.25),
+          boxShadow: [
+            BoxShadow(
+              color: cs.primary.withOpacity(0.18),
+              blurRadius: 8,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        indexHintAlignment: Alignment.centerRight,
+        indexHintOffset: Offset(-20, 0),
+      ),
+      physics: const ClampingScrollPhysics(), // سریع‌تر از Bouncing
+      susItemBuilder: (context, tag) => Container(
+        height: 28,
+        color: cs.surface.withOpacity(0.97),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        alignment: Alignment.centerLeft,
+        child: Text(
+          tag.toString(),
+          style: TextStyle(
+            fontSize: 16,
+            color: cs.primary,
+            fontWeight: FontWeight.bold,
+            shadows: [
+              Shadow(
+                color: cs.primary.withOpacity(0.18),
+                blurRadius: 6,
+                offset: Offset(1, 1),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildSongTile(Song song, List<Song> playlist) {
     final cs = Theme.of(context).colorScheme;
     final isLiked = likedSongIds.contains(song.id);
-    return Card(
-      color: cs.surface,
-      elevation: 2,
-      margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: cs.onSurface.withOpacity(0.2),
-          width: 1,
+    final isPlaying = _currentSong?.id == song.id;
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            if (isPlaying)
+              BoxShadow(
+                color: cs.primary.withOpacity(0.25),
+                blurRadius: 18,
+                spreadRadius: 2,
+                offset: Offset(0, 6),
+              ),
+            BoxShadow(
+              color: cs.onSurface.withOpacity(0.07),
+              blurRadius: 8,
+              spreadRadius: 1,
+              offset: Offset(0, 2),
+            ),
+          ],
         ),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => _onSongPlay(song, playlist),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: QueryArtworkWidget(
-                  id: int.tryParse(song.id) ?? 0,
-                  type: ArtworkType.AUDIO,
-                  nullArtworkWidget:
-                  Icon(Icons.music_note, size: 40, color: cs.primary),
-                  artworkBorder: BorderRadius.circular(8),
-                  artworkHeight: 60,
-                  artworkWidth: 60,
-                  artworkFit: BoxFit.cover,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      song.title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+        child: Card(
+          color: isPlaying
+              ? cs.primary.withOpacity(0.13)
+              : cs.surface,
+          elevation: isPlaying ? 10 : 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+            side: BorderSide(
+              color: isPlaying ? cs.primary : cs.onSurface.withOpacity(0.13),
+              width: isPlaying ? 2.5 : 1,
+            ),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: () => _onSongPlay(song, playlist),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+              child: Row(
+                children: [
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      if (isPlaying)
+                        Container(
+                          width: 58,
+                          height: 58,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: RadialGradient(
+                              colors: [
+                                cs.primary.withOpacity(0.18),
+                                cs.primary.withOpacity(0.07),
+                                Colors.transparent,
+                              ],
+                              stops: const [0.6, 0.9, 1.0],
+                            ),
+                          ),
+                        ),
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 250),
+                        width: isPlaying ? 54 : 48,
+                        height: isPlaying ? 54 : 48,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            if (isPlaying)
+                              BoxShadow(
+                                color: cs.primary.withOpacity(0.18),
+                                blurRadius: 10,
+                                spreadRadius: 2,
+                              ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: QueryArtworkWidget(
+                            id: int.tryParse(song.id) ?? 0,
+                            type: ArtworkType.AUDIO,
+                            nullArtworkWidget: Icon(Icons.music_note, size: 32, color: cs.primary),
+                            artworkBorder: BorderRadius.circular(12),
+                            artworkHeight: 48,
+                            artworkWidth: 48,
+                            artworkFit: BoxFit.cover,
+                          ),
+                        ),
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    ],
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          song.title,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: isPlaying ? cs.primary : cs.onSurface,
+                            shadows: isPlaying
+                                ? [
+                              Shadow(
+                                color: cs.primary.withOpacity(0.18),
+                                blurRadius: 8,
+                                offset: Offset(1, 1),
+                              ),
+                            ]
+                                : [],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          song.artist,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: isPlaying
+                                ? cs.primary.withOpacity(0.7)
+                                : Colors.grey[600],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      song.artist,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[600],
-                      ),
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      isLiked ? Icons.favorite : Icons.favorite_border,
+                      color: isLiked ? Colors.red : Colors.grey,
+                      size: 22,
                     ),
-                  ],
-                ),
+                    onPressed: () => toggleLike(song.id),
+                  ),
+                ],
               ),
-              IconButton(
-                icon: Icon(
-                  isLiked ? Icons.favorite : Icons.favorite_border,
-                  color: isLiked ? Colors.red : Colors.grey,
-                ),
-                onPressed: () => toggleLike(song.id),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -522,30 +689,64 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   Widget _buildSongGridTile(Song song, List<Song> playlist) {
     final cs = Theme.of(context).colorScheme;
     final isLiked = likedSongIds.contains(song.id);
+    final isPlaying = _currentSong?.id == song.id;
     return InkWell(
       onTap: () => _onSongPlay(song, playlist),
       child: Container(
         decoration: BoxDecoration(
           color: cs.surface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: cs.onSurface.withOpacity(0.15)),
+          border: Border.all(
+            color: isPlaying ? cs.primary : cs.onSurface.withOpacity(0.15),
+            width: isPlaying ? 2.5 : 1,
+          ),
+          boxShadow: isPlaying
+              ? [
+            BoxShadow(
+              color: cs.primary.withOpacity(0.18),
+              blurRadius: 16,
+              spreadRadius: 2,
+            ),
+          ]
+              : [],
         ),
         margin: const EdgeInsets.all(8),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: QueryArtworkWidget(
-                id: int.tryParse(song.id) ?? 0,
-                type: ArtworkType.AUDIO,
-                nullArtworkWidget:
-                Icon(Icons.music_note, size: 50, color: cs.primary),
-                artworkBorder: BorderRadius.circular(12),
-                artworkHeight: 90,
-                artworkWidth: 90,
-                artworkFit: BoxFit.cover,
-              ),
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                if (isPlaying)
+                  Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          cs.primary.withOpacity(0.15),
+                          cs.primary.withOpacity(0.05),
+                          Colors.transparent,
+                        ],
+                        stops: const [0.6, 0.9, 1.0],
+                      ),
+                    ),
+                  ),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: QueryArtworkWidget(
+                    id: int.tryParse(song.id) ?? 0,
+                    type: ArtworkType.AUDIO,
+                    nullArtworkWidget:
+                    Icon(Icons.music_note, size: 50, color: cs.primary),
+                    artworkBorder: BorderRadius.circular(12),
+                    artworkHeight: 90,
+                    artworkWidth: 90,
+                    artworkFit: BoxFit.cover,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             Text(
@@ -576,13 +777,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   Widget _buildSongList(List<Song> songsToShow) {
     if (_songViewType == SongViewType.list) {
-      return ListView.builder(
-        physics: const BouncingScrollPhysics(),
-        itemCount: songsToShow.length,
-        padding: const EdgeInsets.all(12),
-        itemBuilder: (context, index) =>
-            _buildSongTile(songsToShow[index], songsToShow),
-      );
+      return _buildAZSongList(songsToShow);
     } else {
       return GridView.builder(
         physics: const BouncingScrollPhysics(),
@@ -1182,7 +1377,7 @@ class _PlayerPageState extends State<PlayerPage>
         id: int.tryParse(song.id) ?? 0,
         type: ArtworkType.AUDIO,
         nullArtworkWidget:
-            Icon(Icons.music_note, size: 100, color: cs.primary),
+        Icon(Icons.music_note, size: 100, color: cs.primary),
         artworkBorder: BorderRadius.circular(105),
         artworkHeight: 210,
         artworkWidth: 210,
@@ -1230,7 +1425,7 @@ class _PlayerPageState extends State<PlayerPage>
   void _playPreviousSong() {
     if (_playlist.isEmpty) return;
     final prevIndex =
-        (_currentIndex - 1) >= 0 ? _currentIndex - 1 : _playlist.length - 1;
+    (_currentIndex - 1) >= 0 ? _currentIndex - 1 : _playlist.length - 1;
     final prevSong = _playlist[prevIndex];
     _playSong(prevSong);
   }
@@ -1523,6 +1718,11 @@ class _PlayerPageState extends State<PlayerPage>
     );
   }
 }
+
+
+
+
+
 
 
 

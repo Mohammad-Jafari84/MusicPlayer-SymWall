@@ -38,6 +38,7 @@ dependencies:
   # Add these new packages
   wave: ^0.2.2
   on_audio_query: ^2.9.0
+  azlistview: ^2.0.0
 
   # Remove these (not needed for fast local audio/artwork):
   # flutter_media_metadata: ^1.0.0+1
@@ -70,4 +71,3 @@ flutter:
 
   assets:
     - assets/images/
-
