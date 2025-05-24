@@ -1063,6 +1063,8 @@ class _PlayerPageState extends State<PlayerPage>
   late AnimationController _discController;
   late bool _isPlaying;
 
+  Widget? _cachedArtwork;
+
   @override
   void initState() {
     super.initState();
@@ -1074,6 +1076,9 @@ class _PlayerPageState extends State<PlayerPage>
       duration: const Duration(seconds: 10),
     );
     _isPlaying = _player.playing;
+
+    // DO NOT use Theme.of(context) or anything that depends on inherited widgets here!
+    // _cachedArtwork will be initialized in didChangeDependencies instead.
 
     bool? lastIsPlaying = _isPlaying;
     _player.playerStateStream.listen((state) {
@@ -1096,6 +1101,7 @@ class _PlayerPageState extends State<PlayerPage>
       }
     });
 
+    // Only play if not resuming
     if (!(widget.resumeInsteadOfRestart == true && _player.playing)) {
       _playSong(_playlist[_currentIndex]);
     } else if (_player.playing) {
@@ -1103,16 +1109,45 @@ class _PlayerPageState extends State<PlayerPage>
     }
   }
 
-  void _playSong(Song song) async {
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Now it's safe to use Theme.of(context) and build artwork
+    _cachedArtwork = _buildArtwork(_playlist[_currentIndex]);
+  }
+
+  Widget _buildArtwork(Song song) {
+    final cs = Theme.of(context).colorScheme;
+    return ClipOval(
+      child: QueryArtworkWidget(
+        id: int.tryParse(song.id) ?? 0,
+        type: ArtworkType.AUDIO,
+        nullArtworkWidget:
+            Icon(Icons.music_note, size: 100, color: cs.primary),
+        artworkBorder: BorderRadius.circular(105),
+        artworkHeight: 210,
+        artworkWidth: 210,
+        artworkFit: BoxFit.cover,
+      ),
+    );
+  }
+
+  Future<void> _playSong(Song song) async {
     try {
       if (_player.playing) await _player.stop();
-      if (await File(song.filePath).exists()) {
+      // FIX: Only set file path if filePath is not empty and file exists
+      if (song.filePath.isNotEmpty && await File(song.filePath).exists()) {
         await _player.setFilePath(song.filePath);
+        setState(() {
+          _cachedArtwork = _buildArtwork(song);
+        });
+        await _player.play();
+        setState(() {
+          _isPlaying = true;
+        });
       } else {
         throw Exception("File not found: ${song.filePath}");
       }
-      await _player.play();
-      setState(() {});
     } catch (e) {
       print("Error playing song: $e");
       if (mounted) {
@@ -1135,7 +1170,7 @@ class _PlayerPageState extends State<PlayerPage>
     if (_playlist.isEmpty) return;
     setState(() {
       _currentIndex =
-      (_currentIndex - 1) >= 0 ? _currentIndex - 1 : _playlist.length - 1;
+          (_currentIndex - 1) >= 0 ? _currentIndex - 1 : _playlist.length - 1;
     });
     _playSong(_playlist[_currentIndex]);
   }
@@ -1199,18 +1234,7 @@ class _PlayerPageState extends State<PlayerPage>
                       ),
                     ],
                   ),
-                  child: ClipOval(
-                    child: QueryArtworkWidget(
-                      id: int.tryParse(song.id) ?? 0,
-                      type: ArtworkType.AUDIO,
-                      nullArtworkWidget:
-                      Icon(Icons.music_note, size: 100, color: cs.primary),
-                      artworkBorder: BorderRadius.circular(105),
-                      artworkHeight: 210,
-                      artworkWidth: 210,
-                      artworkFit: BoxFit.cover,
-                    ),
-                  ),
+                  child: _cachedArtwork,
                 ),
               ),
             ),
