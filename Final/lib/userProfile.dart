@@ -44,6 +44,8 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+
+
   Future<void> _pickImage(ImageSource source) async {
     final XFile? image = await _picker.pickImage(
       source: source,
@@ -59,47 +61,64 @@ class _ProfilePageState extends State<ProfilePage> {
   void _showImagePickerOptions() {
     showModalBottomSheet(
       context: context,
-      builder: (_) => Container(
-        color: Theme.of(context).scaffoldBackgroundColor,
-        child: Wrap(
-          children: [
-            ListTile(
-              leading: Icon(
-                Icons.photo_library,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              title: Text(
-                'Gallery',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              onTap: () {
-                Navigator.of(context).pop();
-                _pickImage(ImageSource.gallery);
-              },
+      builder: (_) =>
+          Container(
+            color: Theme
+                .of(context)
+                .scaffoldBackgroundColor,
+            child: Wrap(
+              children: [
+                ListTile(
+                  leading: Icon(
+                    Icons.photo_library,
+                    color: Theme
+                        .of(context)
+                        .colorScheme
+                        .primary,
+                  ),
+                  title: Text(
+                    'Gallery',
+                    style: Theme
+                        .of(context)
+                        .textTheme
+                        .bodyMedium,
+                  ),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _pickImage(ImageSource.gallery);
+                  },
+                ),
+                ListTile(
+                  leading: Icon(
+                    Icons.camera_alt,
+                    color: Theme
+                        .of(context)
+                        .colorScheme
+                        .primary,
+                  ),
+                  title: Text(
+                    'Camera',
+                    style: Theme
+                        .of(context)
+                        .textTheme
+                        .bodyMedium,
+                  ),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _pickImage(ImageSource.camera);
+                  },
+                ),
+              ],
             ),
-            ListTile(
-              leading: Icon(
-                Icons.camera_alt,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              title: Text(
-                'Camera',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              onTap: () {
-                Navigator.of(context).pop();
-                _pickImage(ImageSource.camera);
-              },
-            ),
-          ],
-        ),
-      ),
+          ),
     );
   }
 
-  // اضافه کردن متد برای افزایش اعتبار
+
   void _addCredit() async {
-    final cs = Theme.of(context).colorScheme;
+    final cs = Theme
+        .of(context)
+        .colorScheme;
     double? amount;
     await showDialog(
       context: context,
@@ -157,99 +176,223 @@ class _ProfilePageState extends State<ProfilePage> {
     });
   }
 
+
+
+
   @override
   Widget build(BuildContext context) {
     final themeProv = Provider.of<ThemeProvider>(context);
-    final cs = Theme.of(context).colorScheme;
+    final cs = Theme
+        .of(context)
+        .colorScheme;
+
+    IconData themeIcon;
+    if (themeProv.isDarkMode) {
+      themeIcon = Icons.light_mode;
+    } else if (themeProv.isLightMode) {
+      themeIcon = Icons.dark_mode;
+    } else {
+      themeIcon = Icons.eco;
+    }
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: cs.background,
       appBar: AppBar(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        backgroundColor: cs.background.withOpacity(0.97),
         elevation: 0,
         title: Text(
           'User Profile',
-          style: TextStyle(color: cs.onBackground),
+          style: GoogleFonts.poppins(
+            color: cs.onBackground,
+            fontWeight: FontWeight.w700,
+            fontSize: 22,
+          ),
         ),
         centerTitle: true,
         actions: [
-          IconButton(
+          PopupMenuButton<String>(
             icon: Icon(
               themeProv.isDarkMode
-                  ? Icons.light_mode
+                  ? Icons.dark_mode
                   : themeProv.isLightMode
+                  ? Icons.light_mode
+                  : themeProv.isGreenMode
                   ? Icons.eco
-                  : Icons.dark_mode,
+                  : Icons.brightness_auto,
               color: cs.primary,
             ),
-            onPressed: () {
+            tooltip: 'Change Theme',
+            onSelected: (value) {
               final prov = Provider.of<ThemeProvider>(context, listen: false);
-              prov.cycleTheme(); // چرخش بین تم‌ها: dark -> light -> green
+              if (value == 'light') prov.setLightMode();
+              if (value == 'dark') prov.setDarkMode();
+              if (value == 'green') prov.setTheme('green');
+              if (value == 'system') prov.setSystemMode();
             },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'light',
+                child: Row(
+                  children: [
+                    Icon(Icons.light_mode, color: cs.primary),
+                    SizedBox(width: 8),
+                    Text('Light'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'dark',
+                child: Row(
+                  children: [
+                    Icon(Icons.dark_mode, color: cs.primary),
+                    SizedBox(width: 8),
+                    Text('Dark'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'green',
+                child: Row(
+                  children: [
+                    Icon(Icons.eco, color: cs.primary),
+                    SizedBox(width: 8),
+                    Text('Green'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'system',
+                child: Row(
+                  children: [
+                    Icon(Icons.brightness_auto, color: cs.primary),
+                    SizedBox(width: 8),
+                    Text('System'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
+
+
       body: SingleChildScrollView(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            (_imageFile != null)
-                ? CircleAvatar(
-              radius: 50,
-              backgroundImage: FileImage(File(_imageFile!.path)),
-            ).animate().fade(duration: 500.ms).scale()
-                : CircleAvatar(
-              radius: 50,
-              backgroundColor: cs.surface,
-              child: Icon(
-                Icons.person,
-                size: 50,
-                color: cs.primary,
+            // Avatar with 3D effect
+            Center(
+              child: Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: cs.primary.withOpacity(0.15),
+                          blurRadius: 24,
+                          offset: Offset(0, 10),
+                        ),
+                      ],
+                      gradient: LinearGradient(
+                        colors: [
+                          cs.primary.withOpacity(0.12),
+                          cs.secondary.withOpacity(0.10)
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                    child: CircleAvatar(
+                      radius: 54,
+                      backgroundColor: cs.surface,
+                      child: CircleAvatar(
+                        radius: 50,
+                        backgroundImage: _imageFile != null
+                            ? FileImage(File(_imageFile!.path))
+                            : null,
+                        child: _imageFile == null
+                            ? Icon(Icons.person, size: 48, color: cs.primary)
+                            : null,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 6,
+                    right: 6,
+                    child: Material(
+                      color: cs.primary,
+                      shape: CircleBorder(),
+                      child: InkWell(
+                        customBorder: CircleBorder(),
+                        onTap: _showImagePickerOptions,
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Icon(Icons.camera_alt, color: cs.onPrimary,
+                              size: 20),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ).animate().fade(duration: 500.ms).scale(),
-            SizedBox(height: 8),
-            IconButton(
-              icon: Icon(
-                Icons.camera_alt,
-                color: cs.primary,
-              ),
-              onPressed: _showImagePickerOptions,
-              tooltip: 'Change Profile Picture',
             ),
-            SizedBox(height: 16),
-            Text(
-              _username,
-              style: TextStyle(
-                fontSize: 20,
-                color: cs.onBackground,
-                fontWeight: FontWeight.bold,
+            SizedBox(height: 22),
+            // User Info Card
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(18),
+              margin: EdgeInsets.only(bottom: 18),
+              decoration: BoxDecoration(
+                color: cs.surface.withOpacity(0.92),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: cs.primary.withOpacity(0.06),
+                    blurRadius: 16,
+                    offset: Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    _username,
+                    style: GoogleFonts.poppins(
+                      fontSize: 20,
+                      color: cs.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    _email,
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: cs.onSurface.withOpacity(0.7),
+                    ),
+                  ),
+                ],
               ),
             ),
-            SizedBox(height: 4),
-            Text(
-              _email,
-              style: TextStyle(
-                fontSize: 16,
-                color: cs.onBackground.withOpacity(0.7),
-              ),
-            ),
-            SizedBox(height: 24),
+            // Credit Card
             Card(
-              color: cs.surface,
+              elevation: 5,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              color: cs.surfaceVariant,
               child: ListTile(
                 leading: Icon(
-                  Icons.account_balance_wallet,
-                  color: cs.primary,
-                ),
-                title: Text(
-                  'Remaining Credit',
-                  style: TextStyle(color: cs.onBackground),
-                ),
-                trailing: Text(
-                  '$_credit \$',
-                  style: TextStyle(color: cs.onBackground),
-                ),
+                    Icons.account_balance_wallet, color: cs.primary, size: 28),
+                title: Text('Credit', style: TextStyle(color: cs.onSurface)),
+                trailing: Text('$_credit \$',
+                    style: TextStyle(
+                        color: cs.primary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 17)),
               ),
             ),
             SizedBox(height: 16),
@@ -257,250 +400,188 @@ class _ProfilePageState extends State<ProfilePage> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: cs.primary,
                 foregroundColor: cs.onPrimary,
-                minimumSize: Size(double.infinity, 48),
+                minimumSize: Size(double.infinity, 44),
+                elevation: 4,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
               icon: Icon(Icons.add_shopping_cart),
               label: Text('Add Credit'),
               onPressed: _addCredit,
             ),
             SizedBox(height: 24),
-            ExpansionTile(
-              collapsedBackgroundColor: cs.surface,
-              backgroundColor: cs.surfaceVariant,
-              title: Text(
-                'Edit Info',
-                style: TextStyle(color: cs.onBackground),
+            // Edit Info
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                color: cs.surface.withOpacity(0.92),
+                boxShadow: [
+                  BoxShadow(
+                    color: cs.secondary.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: Offset(0, 4),
+                  ),
+                ],
               ),
-              leading: Icon(
-                Icons.edit,
-                color: cs.primary,
+              child: ExpansionTile(
+                title: Text('Edit Info', style: TextStyle(color: cs.primary)),
+                leading: Icon(Icons.edit, color: cs.primary),
+                children: [
+                  TextField(
+                    controller: _nameController..text = _username,
+                    decoration: InputDecoration(
+                      labelText: 'Username',
+                      labelStyle: TextStyle(color: cs.onSurface),
+                    ),
+                    style: TextStyle(color: cs.onSurface),
+                  ),
+                  TextField(
+                    controller: _emailController..text = _email,
+                    decoration: InputDecoration(
+                      labelText: 'Email',
+                      labelStyle: TextStyle(color: cs.onSurface),
+                    ),
+                    style: TextStyle(color: cs.onSurface),
+                  ),
+                  TextField(
+                    controller: _passwordController,
+                    decoration: InputDecoration(
+                      labelText: 'New Password',
+                      labelStyle: TextStyle(color: cs.onSurface),
+                    ),
+                    style: TextStyle(color: cs.onSurface),
+                    obscureText: true,
+                  ),
+                  SizedBox(height: 8),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: cs.primary,
+                      foregroundColor: cs.onPrimary,
+                    ),
+                    child: Text('Save Changes'),
+                    onPressed: () {
+                      setState(() {
+                        _username = _nameController.text;
+                        _email = _emailController.text;
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Changes saved')),
+                      );
+                    },
+                  ),
+                ],
               ),
-              children: [
-                TextField(
-                  controller: _nameController..text = _username,
-                  decoration: InputDecoration(
-                    labelText: 'Username',
-                    labelStyle: TextStyle(color: cs.onBackground),
-                    enabledBorder: UnderlineInputBorder(
-                      borderSide: BorderSide(
-                        color: cs.onBackground.withOpacity(0.5),
-                      ),
-                    ),
-                  ),
-                  style: TextStyle(color: cs.onBackground),
-                ),
-                TextField(
-                  controller: _emailController..text = _email,
-                  decoration: InputDecoration(
-                    labelText: 'Email',
-                    labelStyle: TextStyle(color: cs.onBackground),
-                    enabledBorder: UnderlineInputBorder(
-                      borderSide: BorderSide(
-                        color: cs.onBackground.withOpacity(0.5),
-                      ),
-                    ),
-                  ),
-                  style: TextStyle(color: cs.onBackground),
-                ),
-                TextField(
-                  controller: _passwordController,
-                  decoration: InputDecoration(
-                    labelText: 'New Password',
-                    labelStyle: TextStyle(color: cs.onBackground),
-                    enabledBorder: UnderlineInputBorder(
-                      borderSide: BorderSide(
-                        color: cs.onBackground.withOpacity(0.5),
-                      ),
-                    ),
-                  ),
-                  style: TextStyle(color: cs.onBackground),
-                  obscureText: true,
-                ),
-                SizedBox(height: 8),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: cs.primary,
-                    foregroundColor: cs.onPrimary,
-                  ),
-                  child: Text('Save Changes'),
-                  onPressed: () {
-                    setState(() {
-                      _username = _nameController.text;
-                      _email = _emailController.text;
-                    });
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Changes saved')),
-                    );
-                  },
-                ),
-              ],
             ),
-            SizedBox(height: 24),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-              margin: const EdgeInsets.symmetric(vertical: 8),
-              child: ElevatedButton.icon(
-                onPressed: () async {
-                  setState(() {
-                    _deletePressed = true;
-                  });
-
-                  final confirm = await showDialog<bool>(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: Text(
-                        'Are you sure?',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      content: Text(
-                        'This will permanently delete your account.',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: Text('Cancel'),
-                        ),
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          child: Text(
-                            'Delete',
-                            style: TextStyle(color: cs.error),
+            SizedBox(height: 22),
+            // Delete Account
+            ElevatedButton.icon(
+              onPressed: () async {
+                setState(() {
+                  _deletePressed = true;
+                });
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (context) =>
+                      AlertDialog(
+                        title: Text('Are you sure?'),
+                        content: Text(
+                            'This will permanently delete your account.'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: Text('Cancel'),
                           ),
-                        ),
-                      ],
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            child: Text(
+                                'Delete', style: TextStyle(color: cs.error)),
+                          ),
+                        ],
+                      ),
+                );
+                if (confirm == true) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Account deleted'),
+                      backgroundColor: cs.error,
                     ),
                   );
-
-                  if (confirm == true) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Account deleted'),
-                        backgroundColor: cs.error,
-                      ),
-                    );
-                  } else {
-                    setState(() {
-                      _deletePressed = false;
-                    });
-                  }
-                },
-                icon: Icon(Icons.delete, color: cs.onPrimary),
-                label: Text(
-                  'Delete Account',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                  _deletePressed ? cs.error : cs.surfaceVariant,
-                  foregroundColor: cs.onSurfaceVariant,
-                  minimumSize: const Size(double.infinity, 48),
-                ),
+                } else {
+                  setState(() {
+                    _deletePressed = false;
+                  });
+                }
+              },
+              icon: Icon(Icons.delete, color: cs.onPrimary),
+              label: Text('Delete Account',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _deletePressed ? cs.error : cs.surfaceVariant,
+                foregroundColor: cs.onSurfaceVariant,
+                minimumSize: const Size(double.infinity, 44),
+                elevation: 3,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
             ),
-            SizedBox(height: 24),
+            SizedBox(height: 22),
+            // Subscription
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Subscription Type:',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                Text(
-                  _subscription,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium!
-                      .copyWith(fontWeight: FontWeight.bold),
-                ),
+                Text('Subscription:', style: TextStyle(color: cs.onSurface)),
+                Text(_subscription, style: TextStyle(
+                    color: cs.primary, fontWeight: FontWeight.w600)),
               ],
             ),
-            SizedBox(height: 16),
+            SizedBox(height: 12),
             if (_subscription != 'Premium') ...[
-              Text(
-                'Buy Premium Subscription',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge!
-                    .copyWith(color: cs.onBackground),
-              ),
+              Text('Upgrade to Premium', style: TextStyle(
+                  color: cs.onSurface, fontWeight: FontWeight.w500)),
               SizedBox(height: 8),
               Wrap(
-                spacing: 12,
+                spacing: 10,
                 runSpacing: 8,
                 children: [
-                  ElevatedButton(
+                  for (final label in ['1 Month', '3 Months', '12 Months'])
+                    OutlinedButton(
+                      onPressed: () {
+                        Navigator.of(context).push(MaterialPageRoute(builder: (
+                            _) => PaymentPage(amount: 100.0)));
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: cs.primary,
+                        side: BorderSide(color: cs.primary, width: 1.2),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: Text(label),
+                    ),
+                  OutlinedButton.icon(
                     onPressed: () {
                       Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => PaymentPage(amount: 100.0),
-                        ),
-                      );
+                          MaterialPageRoute(builder: (_) => SupportChatPage()));
                     },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: cs.primary,
-                      foregroundColor: cs.onPrimary,
-                    ),
-                    child: Text('1 Month'),
-                  ),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => PaymentPage(amount: 100.0),
-                        ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: cs.primary,
-                      foregroundColor: cs.onPrimary,
-                    ),
-                    child: Text('3 Months'),
-                  ),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => PaymentPage(amount: 100.0),
-                        ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: cs.primary,
-                      foregroundColor: cs.onPrimary,
-                    ),
-                    child: Text('12 Months'),
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => SupportChatPage(),
-                        ),
-                      );
-                    },
-                    icon: Icon(Icons.support_agent, color: cs.onPrimary),
-                    label: Text(
-                      'Support',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: cs.secondaryContainer,
-                      foregroundColor: cs.onSecondaryContainer,
-                      minimumSize: const Size(double.infinity, 48),
+                    icon: Icon(Icons.support_agent, color: cs.primary),
+                    label: Text('Support',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: cs.primary,
+                      side: BorderSide(color: cs.secondary, width: 1.2),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
                     ),
                   ),
                 ],
               ),
             ],
-            SizedBox(height: 24),
           ],
         ),
       ),
     );
   }
 }
+
 
 class SupportChatPage extends StatelessWidget {
   SupportChatPage();
