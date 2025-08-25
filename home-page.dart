@@ -1569,135 +1569,135 @@ class _HomePageState extends State<HomePage>
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => Scaffold(
-          appBar: AppBar(
-            title: Text(playlist.name),
-            actions: [
-              IconButton(
-                icon: Icon(Icons.add),
-                onPressed: () {
-                  Navigator.pop(context);
-                  _showAddSongsDialog(playlist);
-                },
-              ),
-            ],
-          ),
-          body: Column(
-            children: [
-              // Playlist Info
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [cs.primary.withOpacity(0.2), cs.surface],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setDialogState) => Scaffold(
+            appBar: AppBar(
+              title: Text(playlist.name),
+              actions: [
+                IconButton(
+                  icon: Icon(Icons.add),
+                  onPressed: () {
+                    _showAddSongsDialog(playlist);
+                  },
+                ),
+              ],
+            ),
+            body: Column(
+              children: [
+                // Playlist Info
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [cs.primary.withOpacity(0.2), cs.surface],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          color: cs.primary.withOpacity(0.1),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: playlist.songs.isNotEmpty
+                          ? QueryArtworkWidget(
+                              id: int.tryParse(playlist.songs.first.id) ?? 0,
+                              type: ArtworkType.AUDIO,
+                              nullArtworkWidget: Icon(Icons.queue_music, color: cs.primary, size: 40),
+                              artworkBorder: BorderRadius.zero,
+                              artworkFit: BoxFit.cover,
+                            )
+                          : Icon(Icons.queue_music, color: cs.primary, size: 40),
+                      ),
+                      SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              playlist.name,
+                              style: tt.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            if (playlist.description != null)
+                              Text(
+                                playlist.description!,
+                                style: tt.bodyMedium?.copyWith(
+                                  color: cs.onSurface.withOpacity(0.7),
+                                ),
+                              ),
+                            Text(
+                              '${playlist.songs.length} songs',
+                              style: tt.bodySmall?.copyWith(color: cs.primary),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        color: cs.primary.withOpacity(0.1),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: playlist.songs.isNotEmpty
-                        ? QueryArtworkWidget(
-                            id: int.tryParse(playlist.songs.first.id) ?? 0,
-                            type: ArtworkType.AUDIO,
-                            nullArtworkWidget: Icon(Icons.queue_music, color: cs.primary, size: 40),
-                            artworkBorder: BorderRadius.zero,
-                            artworkFit: BoxFit.cover,
-                          )
-                        : Icon(Icons.queue_music, color: cs.primary, size: 40),
-                    ),
-                    SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            playlist.name,
-                            style: tt.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                          if (playlist.description != null)
-                            Text(
-                              playlist.description!,
-                              style: tt.bodyMedium?.copyWith(
-                                color: cs.onSurface.withOpacity(0.7),
-                              ),
-                            ),
-                          Text(
-                            '${playlist.songs.length} songs',
-                            style: tt.bodySmall?.copyWith(color: cs.primary),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
 
-              // Songs List
-              Expanded(
-                child: playlist.songs.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.music_note, size: 64, color: cs.primary.withOpacity(0.5)),
-                          SizedBox(height: 16),
-                          Text(
-                            'No songs in this playlist',
-                            style: tt.titleMedium?.copyWith(color: cs.primary.withOpacity(0.7)),
-                          ),
-                          SizedBox(height: 8),
-                          ElevatedButton.icon(
-                            icon: Icon(Icons.add),
-                            label: Text('Add Songs'),
-                            onPressed: () {
-                              Navigator.pop(context);
-                              _showAddSongsDialog(playlist);
+                // Songs List
+                Expanded(
+                  child: playlist.songs.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.music_note, size: 64, color: cs.primary.withOpacity(0.5)),
+                            SizedBox(height: 16),
+                            Text(
+                              'No songs in this playlist',
+                              style: tt.titleMedium?.copyWith(color: cs.primary.withOpacity(0.7)),
+                            ),
+                            SizedBox(height: 8),
+                            ElevatedButton.icon(
+                              icon: Icon(Icons.add),
+                              label: Text('Add Songs'),
+                              onPressed: () {
+                                _showAddSongsDialog(playlist);
+                              },
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: playlist.songs.length,
+                        itemBuilder: (context, index) {
+                          final song = playlist.songs[index];
+                          return ListTile(
+                            leading: QueryArtworkWidget(
+                              id: int.tryParse(song.id) ?? 0,
+                              type: ArtworkType.AUDIO,
+                              nullArtworkWidget: Icon(Icons.music_note, color: cs.primary),
+                              artworkHeight: 40,
+                              artworkWidth: 40,
+                            ),
+                            title: Text(song.title),
+                            subtitle: Text(song.artist),
+                            trailing: IconButton(
+                              icon: Icon(Icons.delete, color: cs.error),
+                              onPressed: () {
+                                setDialogState(() {
+                                  playlist.songs.removeAt(index);
+                                  _savePlaylists();
+                                });
+                                setState(() {}); // sync with main state
+                              },
+                            ),
+                            onTap: () {
+                              _onSongPlay(song, playlist.songs);
                             },
-                          ),
-                        ],
+                          );
+                        },
                       ),
-                    )
-                  : ListView.builder(
-                      itemCount: playlist.songs.length,
-                      itemBuilder: (context, index) {
-                        final song = playlist.songs[index];
-                        return ListTile(
-                          leading: QueryArtworkWidget(
-                            id: int.tryParse(song.id) ?? 0,
-                            type: ArtworkType.AUDIO,
-                            nullArtworkWidget: Icon(Icons.music_note, color: cs.primary),
-                            artworkHeight: 40,
-                            artworkWidth: 40,
-                          ),
-                          title: Text(song.title),
-                          subtitle: Text(song.artist),
-                          trailing: IconButton(
-                            icon: Icon(Icons.delete, color: cs.error),
-                            onPressed: () {
-                              setState(() {
-                                playlist.songs.removeAt(index);
-                                _savePlaylists();
-                              });
-                            },
-                          ),
-                          onTap: () {
-                            // پخش آهنگ و ارسال کل لیست پلی‌لیست
-                            _onSongPlay(song, playlist.songs);
-                          },
-                        );
-                      },
-                    ),
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
