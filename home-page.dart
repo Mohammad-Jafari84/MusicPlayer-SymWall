@@ -63,6 +63,7 @@ class Song extends ISuspensionBean {
   final String lyrics;
   DateTime? lastPlayed;
   String tag;
+  int playCount;
 
   Song({
     required this.id,
@@ -73,6 +74,7 @@ class Song extends ISuspensionBean {
     required this.lyrics,
     this.tag = '',
     this.lastPlayed,
+    this.playCount = 0,
   });
 
   @override
@@ -87,6 +89,7 @@ class Song extends ISuspensionBean {
     'lyrics': lyrics,
     'lastPlayed': lastPlayed?.toIso8601String(),
     'tag': tag,
+    'playCount': playCount,
   };
 
   factory Song.fromMap(Map<String, dynamic> map) => Song(
@@ -99,6 +102,7 @@ class Song extends ISuspensionBean {
     lastPlayed:
         map['lastPlayed'] != null ? DateTime.parse(map['lastPlayed']) : null,
     tag: map['tag'] ?? '',
+    playCount: map['playCount'] ?? 0,
   );
 }
 
@@ -170,6 +174,7 @@ class _HomePageState extends State<HomePage>
   List<Song> downloadedSongs = [];
   List<Song> recentlyPlayed = [];
   List<Playlist> playlists = [];
+  String _sortType = 'name'; // Add this to track current sort type
 
   @override
   void initState() {
@@ -210,6 +215,9 @@ class _HomePageState extends State<HomePage>
       }
     });
     _loadPlaylists();
+
+    // Load play counts after songs are loaded
+    _localSongsFuture?.then((_) => _loadPlayCounts());
   }
 
   @override
@@ -283,7 +291,7 @@ class _HomePageState extends State<HomePage>
                   artist: e['artist'],
                   image: null,
                   filePath: e['filePath'],
-                  lyrics: '',
+                  lyrics: e['lyrics'] ?? '',
                 ),
               )
               .toList()
@@ -291,10 +299,13 @@ class _HomePageState extends State<HomePage>
       setState(() {
         localSongs = songs;
       });
+      await _loadPlayCounts(); // <-- Load play counts after loading songs
       _loadLocalSongsAndUpdateCache();
       return songs;
     } else {
-      return await _loadLocalSongsAndUpdateCache();
+      final loadedSongs = await _loadLocalSongsAndUpdateCache();
+      await _loadPlayCounts(); // <-- Load play counts after loading songs
+      return loadedSongs;
     }
   }
 
@@ -480,14 +491,46 @@ class _HomePageState extends State<HomePage>
 
   List<Song> get allSongs => localSongs;
 
-  void _onSongPlay(Song song, List<Song> playlist) {
+  Future<void> _loadPlayCounts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final playCountsJson = prefs.getString('play_counts') ?? '{}';
+    final Map<String, dynamic> playCounts = json.decode(playCountsJson);
+
     setState(() {
+      for (var song in localSongs) {
+        if (playCounts.containsKey(song.id)) {
+          song.playCount = playCounts[song.id];
+        }
+      }
+    });
+  }
+
+  Future<void> _savePlayCount(Song song) async {
+    final prefs = await SharedPreferences.getInstance();
+    final playCountsJson = prefs.getString('play_counts') ?? '{}';
+    Map<String, dynamic> playCounts = json.decode(playCountsJson);
+    playCounts[song.id] = song.playCount;
+    await prefs.setString('play_counts', json.encode(playCounts));
+  }
+
+  void _onSongPlay(Song song, List<Song> playlist) async {
+    setState(() {
+      song.playCount++;
       _currentSong = song;
       _isPlaying = true;
       _miniPlayerPlaylist = List<Song>.from(playlist);
       _miniPlayerCurrentIndex = playlist.indexWhere((s) => s.id == song.id);
       _miniPlayerShuffling = isShufflingGlobal;
     });
+    await _savePlayCount(song);
+
+    // If sorted by play count, re-sort after play
+    if (_sortType == 'playCount') {
+      setState(() {
+        localSongs.sort((a, b) => b.playCount.compareTo(a.playCount));
+      });
+    }
+
     _addToRecentlyPlayed(song);
     _playMiniPlayerSong(force: true);
     Navigator.push(
@@ -770,20 +813,55 @@ class _HomePageState extends State<HomePage>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          song.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                song.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: cs.primary.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.play_circle_outline, size: 12, color: cs.primary),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    '${song.playCount}',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: cs.primary,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                        Text(
-                          song.artist,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: cs.onSurface.withOpacity(0.7),
-                          ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                song.artist,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: cs.onSurface.withOpacity(0.7),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -1173,19 +1251,39 @@ class _HomePageState extends State<HomePage>
           PopupMenuButton<String>(
             icon: Icon(Icons.more_vert, color: Colors.grey),
             onSelected: (value) {
-              if (value == 'name') {
-                setState(() {
+              setState(() {
+                _sortType = value; // Track sort type
+                if (value == 'name') {
                   localSongs.sort((a, b) => a.title.compareTo(b.title));
-                });
-              }
+                } else if (value == 'playCount') {
+                  localSongs.sort((a, b) => b.playCount.compareTo(a.playCount));
+                }
+              });
             },
-            itemBuilder:
-                (context) => [
-                  const PopupMenuItem(
-                    value: 'name',
-                    child: Text('Sort by name'),
-                  ),
-                ],
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'name',
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.sort_by_alpha),
+                    SizedBox(width: 8),
+                    Text('Sort by name'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'playCount',
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.play_circle_outline),
+                    SizedBox(width: 8),
+                    Text('Most played'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
