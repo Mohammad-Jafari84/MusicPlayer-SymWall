@@ -1566,7 +1566,6 @@ class _HomePageState extends State<HomePage>
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
 
-    // برای جلوگیری از قفل شدن صفحه، از Navigator.push استفاده می‌کنیم
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -1598,19 +1597,22 @@ class _HomePageState extends State<HomePage>
                 child: Row(
                   children: [
                     Container(
-                      width: 60,
-                      height: 60,
+                      width: 80,
+                      height: 80,
                       decoration: BoxDecoration(
-                        color: cs.primary.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
+                        color: cs.primary.withOpacity(0.1),
                       ),
+                      clipBehavior: Clip.antiAlias,
                       child: playlist.songs.isNotEmpty
                         ? QueryArtworkWidget(
                             id: int.tryParse(playlist.songs.first.id) ?? 0,
                             type: ArtworkType.AUDIO,
-                            nullArtworkWidget: Icon(Icons.queue_music, color: cs.primary, size: 30),
+                            nullArtworkWidget: Icon(Icons.queue_music, color: cs.primary, size: 40),
+                            artworkBorder: BorderRadius.zero,
+                            artworkFit: BoxFit.cover,
                           )
-                        : Icon(Icons.queue_music, color: cs.primary, size: 30),
+                        : Icon(Icons.queue_music, color: cs.primary, size: 40),
                     ),
                     SizedBox(width: 16),
                     Expanded(
@@ -1899,11 +1901,19 @@ class _HomePageState extends State<HomePage>
                           width: 56,
                           height: 56,
                           decoration: BoxDecoration(
-                            color: cs.primary.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(12),
+                            color: cs.primary.withOpacity(0.1),
                           ),
-                          child: Icon(Icons.queue_music,
-                            color: cs.primary, size: 30),
+                          clipBehavior: Clip.antiAlias,
+                          child: playlist.songs.isNotEmpty
+                            ? QueryArtworkWidget(
+                                id: int.tryParse(playlist.songs.first.id) ?? 0,
+                                type: ArtworkType.AUDIO,
+                                nullArtworkWidget: Icon(Icons.queue_music, color: cs.primary, size: 30),
+                                artworkBorder: BorderRadius.zero,
+                                artworkFit: BoxFit.cover,
+                              )
+                            : Icon(Icons.queue_music, color: cs.primary, size: 30),
                         ),
                         title: Text(playlist.name,
                           style: tt.titleMedium?.copyWith(
