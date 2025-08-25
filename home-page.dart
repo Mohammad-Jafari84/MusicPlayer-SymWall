@@ -502,6 +502,19 @@ class _HomePageState extends State<HomePage>
           song.playCount = playCounts[song.id];
         }
       }
+
+      // Sort by play count if that's the current sort type
+      if (_sortType == 'playCount') {
+        localSongs.sort((a, b) {
+          // Sort by play count in descending order
+          int compareResult = b.playCount.compareTo(a.playCount);
+          // If play counts are equal, sort by title
+          if (compareResult == 0) {
+            return a.title.compareTo(b.title);
+          }
+          return compareResult;
+        });
+      }
     });
   }
 
@@ -514,22 +527,37 @@ class _HomePageState extends State<HomePage>
   }
 
   void _onSongPlay(Song song, List<Song> playlist) async {
+    // Update play count and save immediately
+    song.playCount++;
+    await _savePlayCount(song);
+
+    // Update state and sort if needed
     setState(() {
-      song.playCount++;
       _currentSong = song;
       _isPlaying = true;
       _miniPlayerPlaylist = List<Song>.from(playlist);
       _miniPlayerCurrentIndex = playlist.indexWhere((s) => s.id == song.id);
       _miniPlayerShuffling = isShufflingGlobal;
-    });
-    await _savePlayCount(song);
 
-    // If sorted by play count, re-sort after play
-    if (_sortType == 'playCount') {
-      setState(() {
-        localSongs.sort((a, b) => b.playCount.compareTo(a.playCount));
-      });
-    }
+      // Update the song in localSongs list
+      final index = localSongs.indexWhere((s) => s.id == song.id);
+      if (index != -1) {
+        localSongs[index] = song;
+      }
+
+      // Re-sort if sorting by play count
+      if (_sortType == 'playCount') {
+        localSongs.sort((a, b) {
+          // Sort by play count in descending order
+          int compareResult = b.playCount.compareTo(a.playCount);
+          // If play counts are equal, sort by title
+          if (compareResult == 0) {
+            return a.title.compareTo(b.title);
+          }
+          return compareResult;
+        });
+      }
+    });
 
     _addToRecentlyPlayed(song);
     _playMiniPlayerSong(force: true);
@@ -1252,11 +1280,19 @@ class _HomePageState extends State<HomePage>
             icon: Icon(Icons.more_vert, color: Colors.grey),
             onSelected: (value) {
               setState(() {
-                _sortType = value; // Track sort type
+                _sortType = value;
                 if (value == 'name') {
                   localSongs.sort((a, b) => a.title.compareTo(b.title));
                 } else if (value == 'playCount') {
-                  localSongs.sort((a, b) => b.playCount.compareTo(a.playCount));
+                  localSongs.sort((a, b) {
+                    // Sort by play count in descending order
+                    int compareResult = b.playCount.compareTo(a.playCount);
+                    // If play counts are equal, sort by title
+                    if (compareResult == 0) {
+                      return a.title.compareTo(b.title);
+                    }
+                    return compareResult;
+                  });
                 }
               });
             },
