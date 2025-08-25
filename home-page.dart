@@ -1533,9 +1533,9 @@ class _HomePageState extends State<HomePage>
                                 } else if (value == false && isInPlaylist) {
                                   playlist.songs.removeWhere((s) => s.id == song.id);
                                 }
+                                _savePlaylists();
                               });
-                              setState(() {});
-                              _savePlaylists();
+                              setState(() {}); // sync with main state for instant update
                             },
                           ),
                           onTap: () {
@@ -1545,9 +1545,9 @@ class _HomePageState extends State<HomePage>
                               } else {
                                 playlist.songs.removeWhere((s) => s.id == song.id);
                               }
+                              _savePlaylists();
                             });
                             setState(() {});
-                            _savePlaylists();
                           },
                         );
                       },
@@ -1629,7 +1629,7 @@ class _HomePageState extends State<HomePage>
                                 style: tt.bodyMedium?.copyWith(
                                   color: cs.onSurface.withOpacity(0.7),
                                 ),
-                              ),
+                            ),
                             Text(
                               '${playlist.songs.length} songs',
                               style: tt.bodySmall?.copyWith(color: cs.primary),
